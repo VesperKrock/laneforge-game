@@ -3,11 +3,13 @@ A 2D lane-based strategy game featuring weapon classes, spell cards, and tactica
 
 LaneForge là game chiến thuật/thủ thành 2D trên một chiến tuyến ngang: chuẩn bị năm slot, chọn thời điểm triệu hồi bằng Vàng + Cooldown, để đơn vị tự tiến và giao chiến.
 
-## Bản thử R0B
+## Bản thử local R1A
 
-Phaser 3 + TypeScript + Vite. Bản thử có hai căn cứ, một lane, nút Bắt đầu/Chơi lại, một slot Trường Kiếm hoạt động và bốn slot dự phòng. Triệu hồi tốn 25 Vàng demo, hồi chiêu 2 giây; đơn vị tự tiến, đánh hai lính địch kịch bản rồi đánh căn cứ. Có kết quả thắng/thua, thanh HP và bộ đếm đòn trúng.
+Phaser 3 + TypeScript + Vite. Kế thừa R0B `19aa892`, R1A bật năm slot cố định: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Trường Kiếm. Tất cả dùng chung Vàng nhưng có CD riêng, kể cả hai slot Trường Kiếm. Giá/CD và trạng thái sẵn sàng, hồi chiêu hoặc thiếu Vàng hiện trên từng nút.
 
-**TẠM THỜI / CHƯA CÂN BẰNG:** toàn bộ chỉ số/hình học chỉ phục vụ smoke test. Chưa có chuẩn bị đội hình, gameplay hoàn chỉnh, Spell Card, tiến hóa, campaign, lưu game hay PvP. Demo không có backend, tài khoản, analytics hoặc dịch vụ ngoài.
+Bốn quân có HP, sát thương, nhịp đánh và tốc chạy khác nhau; có hình/ký hiệu riêng. Quân tự tiến, đánh địch gần nhất ở phía trước rồi đánh căn cứ đúng tầm. PvE tạm có ba địch kịch bản tại 0/6/10 giây. Giữ nút bắt đầu/chơi lại, thanh HP, bộ đếm đòn trúng và kết quả thắng/thua. Xem [bảng chỉ số TEMP_R1A](docs/UNITS.md).
+
+**TẠM THỜI / CHƯA CÂN BẰNG:** toàn bộ chỉ số/hình học phục vụ core combat test. Khiên chịu đòn bằng HP, không giáp/taunt; quân cùng phe có thể chồng hình. Chưa có chuẩn bị đội hình, gameplay hoàn chỉnh, Spell Card, tiến hóa, campaign, lưu game hay PvP. Không có backend, tài khoản, analytics hoặc dịch vụ ngoài. Chưa stage/commit/push/deploy R1A trong vòng triển khai local.
 
 ## Chạy local
 
@@ -49,11 +51,11 @@ Scanner nội bộ kiểm tra allowlist, tracked/staged/untracked candidates, ig
 
 ## GitHub Pages
 
-Đích dự kiến: **https://vesperkrock.github.io/laneforge-game/**. Đây là URL kế hoạch, chưa phải tuyên bố site đã live.
+URL R0B đã công bố: **https://vesperkrock.github.io/laneforge-game/**. Code R1A hiện chỉ được phép kiểm tra local; không coi site đang phục vụ R1A trước khi được duyệt, push và xác minh deploy.
 
 Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài từ lockfile, build, kiểm tra security rồi upload **chỉ `dist/`**. Các action chính thức được pin bằng commit SHA; checkout không giữ credentials.
 
-Owner cần mở [Settings → Pages](https://github.com/VesperKrock/laneforge-game/settings/pages), chọn **Build and deployment → Source → GitHub Actions**. Commit/push chỉ được thực hiện sau khi Owner duyệt phạm vi R0B trong hội thoại. Sau push phải kiểm tra Actions thành công và mở URL để xác nhận thao tác triệu hồi, CD, thắng/thua, resize và tải assets; không suy ra Pages live từ build local.
+Nguồn Pages đã được cấu hình **GitHub Actions** ở R0B. Không sửa workflow/settings trong R1A. Commit/push R1A chỉ được thực hiện sau khi Owner duyệt đúng phạm vi trong hội thoại. Sau push phải kiểm tra Actions thành công và mở URL để xác nhận thao tác triệu hồi, CD, thắng/thua, resize và tải assets; không suy ra Pages live từ build local.
 
 Hướng dẫn nền tảng: [Vite project Pages/base path](https://vite.dev/guide/static-deploy.html#github-pages), [GitHub custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Node LTS](https://nodejs.org/en/about/previous-releases).
 

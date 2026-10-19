@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
-import { Battle, DEMO } from './Battle';
+import { Battle, DEMO, TEMP_R1A_UNITS } from './Battle';
+
+const LABEL_Y = { sword: 204, axe: 190, shield: 176, gladiator: 162 } as const;
 
 export class BattleScene extends Phaser.Scene {
   private readonly battle: Battle;
   private readonly onUpdate: () => void;
   private drawing!: Phaser.GameObjects.Graphics;
   private message!: Phaser.GameObjects.Text;
+  private readonly unitLabels = new Map<number, Phaser.GameObjects.Text>();
 
   constructor(battle: Battle, onUpdate: () => void) {
     super('battle');
@@ -22,7 +25,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    this.battle.step(delta / 1000);
+    if (!document.hidden) this.battle.step(delta / 1000);
     this.paint();
     this.onUpdate();
   }
@@ -42,6 +45,10 @@ export class BattleScene extends Phaser.Scene {
     this.base(DEMO.playerBaseX, 0x69ceb5, this.battle.playerHp / DEMO.playerBaseHp);
     this.base(DEMO.enemyBaseX, 0xe88a72, this.battle.enemyHp / DEMO.enemyBaseHp);
 
+    const livingIds = new Set(this.battle.units.map(unit => unit.id));
+    for (const [id, label] of this.unitLabels) {
+      if (!livingIds.has(id)) { label.destroy(); this.unitLabels.delete(id); }
+    }
     for (const unit of this.battle.units) {
       const friendly = unit.side === 'friendly';
       const color = friendly ? 0x76dec3 : 0xf09b84;
@@ -49,13 +56,26 @@ export class BattleScene extends Phaser.Scene {
       const bob = Math.sin(this.battle.elapsed * 10 + unit.id) * 1.5;
       g.fillStyle(0x060e10, 0.5).fillEllipse(unit.x, 280, 30, 8);
       g.fillStyle(unit.flash > 0 ? 0xffefc6 : color);
-      if (friendly) g.fillRoundedRect(unit.x - 10, 246 + bob, 20, 30, 3);
-      else g.fillTriangle(unit.x, 244 + bob, unit.x - 13, 275, unit.x + 13, 275);
+      switch (unit.kind) {
+        case 'sword': g.fillRoundedRect(unit.x - 10, 246 + bob, 20, 30, 3); break;
+        case 'axe': g.fillPoints([{ x: unit.x, y: 241 + bob }, { x: unit.x + 15, y: 258 }, { x: unit.x, y: 277 }, { x: unit.x - 15, y: 258 }], true); break;
+        case 'shield': g.fillCircle(unit.x, 259 + bob, 17); break;
+        case 'gladiator': g.fillTriangle(unit.x, 244 + bob, unit.x - 12, 275, unit.x + 12, 275); break;
+      }
       g.fillStyle(0xe9f3dd).fillCircle(unit.x, 239 + bob, 7);
       g.lineStyle(unit.flash > 0 ? 4 : 2, 0xf8dfaa);
       g.lineBetween(unit.x + direction * 8, 257 + bob, unit.x + direction * (unit.flash > 0 ? 31 : 19), 233 + bob);
+      if (unit.kind === 'axe') g.fillStyle(color).fillRect(unit.x + direction * 19 - 6, 232 + bob, 12, 9);
+      if (unit.kind === 'shield') g.fillStyle(0xc1cbb2).fillRoundedRect(unit.x + direction * 13 - 5, 248 + bob, 10, 23, 3);
+      if (unit.kind === 'gladiator') g.lineBetween(unit.x - direction * 8, 257 + bob, unit.x - direction * 19, 237 + bob);
       g.fillStyle(0x071115).fillRect(unit.x - 15, 218, 30, 4);
       g.fillStyle(color).fillRect(unit.x - 15, 218, 30 * unit.hp / unit.maxHp, 4);
+      let label = this.unitLabels.get(unit.id);
+      if (!label) {
+        label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1A_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);
+        this.unitLabels.set(unit.id, label);
+      }
+      label.setText(TEMP_R1A_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
     }
     const labels = { ready: 'CHỜ LỆNH TRIỆU HỒI', running: '', won: 'THẮNG — GIỮ VỮNG CHIẾN TUYẾN', lost: 'THUA — THỬ MỘT NHỊP TRIỆU HỒI KHÁC' };
     this.message.setText(labels[this.battle.phase]);

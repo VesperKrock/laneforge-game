@@ -42,15 +42,16 @@ h2 { margin: 0; font-size: 19px; font-weight: 550; letter-spacing: -.02em; }
 .slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .slot { position: relative; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #2a3830; border-radius: 4px; min-height: 164px; padding: 15px; background: #131e1c; color: #d2dccd; text-align: left; }
 .slot-number { color: #7f9286; font-size: 10px; font-variant-numeric: tabular-nums; }
-.unit-symbol { color: #cbb780; font-size: 38px; line-height: 1; height: 40px; margin: 4px 0 10px 9px; text-shadow: 3px 1px #689c86; }
+.unit-symbol { color: #cbb780; font-size: 24px; font-weight: 700; line-height: 40px; height: 40px; margin: 4px 0 10px; letter-spacing: .08em; }
 .slot strong { font-size: 13px; font-weight: 600; margin-bottom: 7px; }
 .slot > span:last-of-type { font-size: 10px; color: #8eaa96; }
 .slot em { font-size: 11px; font-weight: 650; font-style: normal; margin-top: 14px; color: #dfc389; }
 .active-slot { border-color: #a9905c; background: #1d2720; }
 .active-slot:not(:disabled):hover { background: #2b3829; border-color: #f4ce87; }
 .active-slot:disabled { opacity: .74; }
-.empty-slot { background: #101918; border-style: dashed; color: #95a092; }
-.empty-symbol { font-size: 28px; line-height: 40px; height: 40px; margin: 4px 0 10px; color: #42544a; }
+.slot-note { font-size: 10px; line-height: 1.5; color: #aab9a5; margin-top: 8px; min-height: 30px; }
+.slot[data-state="insufficient"] .slot-cooldown { color: #f0a68c; }
+@media (max-width: 700px) { .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .slot:last-child { grid-column: 1 / -1; } }
 footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 23px 0 30px; }
 footer p { max-width: 720px; margin: 0; font-size: 10px; color: #8f9c90; line-height: 1.8; }
 .temporary-label { color: #c8b480; font-size: 9px; font-weight: 700; letter-spacing: .05em; margin-right: 9px; }

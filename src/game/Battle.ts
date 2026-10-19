@@ -1,4 +1,4 @@
-// R0B demo constants only. These are not approved game balance or R1 rules.
+// TEMP_R1A: provisional playtest values, not approved game balance.
 export const DEMO = Object.freeze({
   width: 960,
   height: 400,
@@ -9,16 +9,28 @@ export const DEMO = Object.freeze({
   initialGold: 100,
   maxGold: 125,
   goldPerSecond: 6,
-  summonCost: 25,
-  summonCooldown: 2,
+  spawnOffset: 14,
   attackRange: 28,
 });
+
+export const TEMP_R1A_UNITS = {
+  sword: { name: 'Trường Kiếm', mark: 'TK', role: 'Cân bằng', hp: 60, damage: 12, attackInterval: 0.65, speed: 105, cost: 25, cooldown: 2 },
+  axe: { name: 'Rìu', mark: 'RI', role: 'Đòn nặng', hp: 88, damage: 26, attackInterval: 1.2, speed: 72, cost: 35, cooldown: 3.2 },
+  shield: { name: 'Khiên', mark: 'KH', role: 'Chịu đòn bằng HP', hp: 150, damage: 5, attackInterval: 0.95, speed: 54, cost: 40, cooldown: 4 },
+  gladiator: { name: 'Kiếm Giác Đấu', mark: 'GD', role: 'Đánh nhanh', hp: 38, damage: 7, attackInterval: 0.35, speed: 138, cost: 20, cooldown: 1.5 },
+} as const;
+export type UnitKind = keyof typeof TEMP_R1A_UNITS;
+export const TEMP_R1A_SLOTS = ['sword', 'axe', 'shield', 'gladiator', 'sword'] as const;
+const TEMP_R1A_ENEMIES: readonly { at: number; kind: UnitKind }[] = [
+  { at: 0, kind: 'sword' }, { at: 6, kind: 'axe' }, { at: 10, kind: 'gladiator' },
+];
 
 export type Phase = 'ready' | 'running' | 'won' | 'lost';
 export type Side = 'friendly' | 'enemy';
 export interface Unit {
   id: number;
   side: Side;
+  kind: UnitKind;
   x: number;
   hp: number;
   maxHp: number;
@@ -32,7 +44,7 @@ export interface Unit {
 export class Battle {
   phase: Phase = 'ready';
   gold: number = DEMO.initialGold;
-  cooldown = 0;
+  cooldowns: number[] = TEMP_R1A_SLOTS.map(() => 0);
   playerHp: number = DEMO.playerBaseHp;
   enemyHp: number = DEMO.enemyBaseHp;
   elapsed = 0;
@@ -40,33 +52,37 @@ export class Battle {
   units: Unit[] = [];
   event = 'Bấm Bắt đầu, sau đó triệu hồi Trường Kiếm.';
   private nextId = 0;
-  private secondEnemySpawned = false;
+  private nextEnemy = 0;
 
   start(): void {
     this.phase = 'running';
     this.gold = DEMO.initialGold;
-    this.cooldown = 0;
+    this.cooldowns = TEMP_R1A_SLOTS.map(() => 0);
     this.playerHp = DEMO.playerBaseHp;
     this.enemyHp = DEMO.enemyBaseHp;
     this.elapsed = 0;
     this.hits = 0;
     this.units = [];
     this.nextId = 0;
-    this.secondEnemySpawned = false;
-    this.event = 'Địch đang tiến tới. Triệu hồi để giữ tuyến!';
-    this.spawn('enemy');
+    this.nextEnemy = 1;
+    this.event = 'Địch đang tiến tới. Năm slot dùng chung Vàng, CD riêng!';
+    this.spawn('enemy', TEMP_R1A_ENEMIES[0].kind);
   }
 
-  get canSummon(): boolean {
-    return this.phase === 'running' && this.cooldown <= 0 && this.gold >= DEMO.summonCost;
+  canSummon(slot: number): boolean {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= TEMP_R1A_SLOTS.length) return false;
+    const profile = TEMP_R1A_UNITS[TEMP_R1A_SLOTS[slot]];
+    return this.phase === 'running' && this.cooldowns[slot] <= 0 && this.gold >= profile.cost;
   }
 
-  summon(): boolean {
-    if (!this.canSummon) return false;
-    this.gold -= DEMO.summonCost;
-    this.cooldown = DEMO.summonCooldown;
-    this.spawn('friendly');
-    this.event = 'Đã triệu hồi Trường Kiếm — trừ 25 Vàng demo.';
+  summon(slot: number): boolean {
+    if (!this.canSummon(slot)) return false;
+    const kind = TEMP_R1A_SLOTS[slot];
+    const profile = TEMP_R1A_UNITS[kind];
+    this.gold -= profile.cost;
+    this.cooldowns[slot] = profile.cooldown;
+    this.spawn('friendly', kind);
+    this.event = `Slot ${slot + 1}: ${profile.name} — trừ ${profile.cost} Vàng thử nghiệm.`;
     return true;
   }
 
@@ -76,11 +92,12 @@ export class Battle {
     const dt = Math.min(seconds, 0.05);
     this.elapsed += dt;
     this.gold = Math.min(DEMO.maxGold, this.gold + DEMO.goldPerSecond * dt);
-    this.cooldown = Math.max(0, this.cooldown - dt);
-    if (!this.secondEnemySpawned && this.elapsed >= 6) {
-      this.spawn('enemy');
-      this.secondEnemySpawned = true;
-      this.event = 'Lính địch thứ hai đã xuất hiện theo kịch bản.';
+    this.cooldowns = this.cooldowns.map(cooldown => Math.max(0, cooldown - dt));
+    const scheduled = TEMP_R1A_ENEMIES[this.nextEnemy];
+    if (scheduled && this.elapsed >= scheduled.at) {
+      this.spawn('enemy', scheduled.kind);
+      this.nextEnemy += 1;
+      this.event = `Địch tiếp viện: ${TEMP_R1A_UNITS[scheduled.kind].name}.`;
     }
 
     for (const unit of this.units) {
@@ -88,10 +105,14 @@ export class Battle {
       unit.attackIn = Math.max(0, unit.attackIn - dt);
       unit.flash = Math.max(0, unit.flash - dt);
       const direction = unit.side === 'friendly' ? 1 : -1;
-      const targets = this.units.filter(other => other.side !== unit.side && other.hp > 0 && (other.x - unit.x) * direction >= -DEMO.attackRange);
-      const target = targets.sort((a, b) => Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x))[0];
-      const targetX = target?.x ?? (unit.side === 'friendly' ? DEMO.enemyBaseX : DEMO.playerBaseX);
-      const distance = Math.abs(targetX - unit.x);
+      const baseX = unit.side === 'friendly' ? DEMO.enemyBaseX : DEMO.playerBaseX;
+      let distance = Math.max(0, (baseX - unit.x) * direction);
+      let target: Unit | undefined;
+      for (const other of this.units) {
+        if (other.side === unit.side || other.hp <= 0) continue;
+        const ahead = (other.x - unit.x) * direction;
+        if (ahead >= 0 && ahead <= distance) { target = other; distance = ahead; }
+      }
       if (distance > DEMO.attackRange) {
         unit.x += direction * Math.min(unit.speed * dt, distance - DEMO.attackRange);
       } else if (unit.attackIn <= 0) {
@@ -102,7 +123,8 @@ export class Battle {
         else this.playerHp = Math.max(0, this.playerHp - unit.damage);
         if (unit.side === 'friendly') {
           this.hits += 1;
-          this.event = target ? 'Trường Kiếm đánh trúng lính địch!' : 'Trường Kiếm đánh trúng căn cứ địch!';
+          const name = TEMP_R1A_UNITS[unit.kind].name;
+          this.event = target ? `${name} đánh trúng lính địch!` : `${name} đánh trúng căn cứ địch!`;
         } else this.event = target ? 'Đơn vị ta đang giao chiến.' : 'Căn cứ ta đang bị tấn công!';
         if (this.enemyHp <= 0 || this.playerHp <= 0) {
           this.phase = this.enemyHp <= 0 ? 'won' : 'lost';
@@ -114,16 +136,17 @@ export class Battle {
     this.units = this.units.filter(unit => unit.hp > 0);
   }
 
-  private spawn(side: Side): void {
+  private spawn(side: Side, kind: UnitKind): void {
     const friendly = side === 'friendly';
-    const hp = friendly ? 60 : 40;
+    const profile = TEMP_R1A_UNITS[kind];
     this.units.push({
-      id: this.nextId++, side,
-      x: friendly ? DEMO.playerBaseX + 42 : DEMO.enemyBaseX - 42,
-      hp, maxHp: hp,
-      damage: friendly ? 12 : 8,
-      speed: friendly ? 105 : 65,
-      attackInterval: friendly ? 0.65 : 0.85,
+      id: this.nextId++, side, kind,
+      // Spawn inside base attack range so reinforcements cannot appear behind an attacker.
+      x: friendly ? DEMO.playerBaseX + DEMO.spawnOffset : DEMO.enemyBaseX - DEMO.spawnOffset,
+      hp: profile.hp, maxHp: profile.hp,
+      damage: profile.damage,
+      speed: profile.speed,
+      attackInterval: profile.attackInterval,
       attackIn: 0, flash: 0,
     });
   }

@@ -1,15 +1,15 @@
 # Đơn vị
 
-## Owner-proposed initial four
+## Roster thử R1A — Owner duyệt hướng vai trò, chưa khóa cân bằng
 
-Owner đã nêu bốn hướng đơn vị dưới đây. Đây là danh sách do Owner đề xuất, không phải roster hoặc chỉ số đã khóa. Phân tích vai trò/điểm yếu ở cột phải là **PROPOSAL** để thảo luận, chưa phải quy tắc đã xác nhận.
+R1A cho phép dùng bốn hướng sau làm roster chơi thử tạm. HP, sát thương, nhịp đánh, di chuyển, giá và CD vẫn là **PROVISIONAL / CHƯA CÂN BẰNG**. Điểm yếu là phân tích để thử nghiệm, chưa phải kết luận cân bằng đã kiểm chứng.
 
 | Đơn vị Owner đề xuất | Vai trò đề xuất | Điểm yếu đề xuất |
 | --- | --- | --- |
 | Trường Kiếm | Cận chiến cân bằng, giữ nhịp tiến quân | Không vượt trội trước chuyên gia chống cận chiến hoặc áp lực tầm xa |
-| Rìu | Sát thương mỗi đòn cao, tạo áp lực lên tuyến trước | Nhịp đánh chậm; dễ bị mất hiệu quả khi đánh mục tiêu ít HP |
-| Khiên | Hấp thụ sát thương, giữ tuyến cho đồng đội | Sát thương thấp; có thể bị vượt qua bằng cách khắc chế phòng thủ |
-| Kiếm Giác Đấu | Đấu tay đôi, khai thác các khoảng trống nhỏ | Kém hiệu quả khi bị áp đảo số lượng hoặc phải chịu hỏa lực tập trung |
+| Rìu | Sát thương mỗi đòn cao, HP khá cao, đánh/đi chậm | Đòn chậm dễ lãng phí khi đánh mục tiêu ít HP |
+| Khiên | HP cao nhất; chịu đòn chỉ bằng HP, không giáp/taunt | Sát thương và tốc chạy thấp; không ép địch chọn mình hoặc giữ quân nhanh ở phía sau |
+| Kiếm Giác Đấu | Đánh và di chuyển nhanh, HP và sát thương mỗi đòn thấp | Dễ tiến quá xa trước tuyến chậm và bị hạ nhanh |
 
 ## Ứng viên mở rộng — PROPOSED / CHƯA ĐƯỢC OWNER DUYỆT
 
@@ -21,8 +21,15 @@ Owner đã nêu bốn hướng đơn vị dưới đây. Đây là danh sách do
 | Búa Chiến | Đòn nặng, nhịp chậm; cơ chế phá giáp còn mở |
 | Nỏ Xuyên Giáp | Chuyên trị mục tiêu phòng thủ; hệ giáp chưa được duyệt |
 
-## Chỉ số
+## TEMP_R1A — giá trị thử nghiệm, chưa khóa
 
-Chưa khóa HP, DMG, giáp, giá, CD, tốc chạy, tốc đánh, tầm đánh hoặc kỹ năng của bất kỳ đơn vị nào. Không có bảng cân bằng chính thức trong R0.
+| Loại / ký hiệu | HP | DMG/đòn | Khoảng đánh (s) | Di chuyển (tọa độ/s) | Vàng | CD slot (s) | Hình tạm |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Trường Kiếm / TK | 60 | 12 | 0.65 | 105 | 25 | 2 | Chữ nhật |
+| Rìu / RI | 88 | 26 | 1.2 | 72 | 35 | 3.2 | Hình thoi + rìu |
+| Khiên / KH | 150 | 5 | 0.95 | 54 | 40 | 4 | Tròn + khiên |
+| Kiếm Giác Đấu / GD | 38 | 7 | 0.35 | 138 | 20 | 1.5 | Tam giác + hai kiếm |
 
-R0B dùng một đơn vị hình chữ nhật có nhãn Trường Kiếm để kiểm chứng thao tác triệu hồi. Những số nằm trong `src/game/Battle.ts` chỉ có nhãn **PROVISIONAL / CHƯA CÂN BẰNG**, không chứng minh vai trò hay khắc chế đã hoạt động trong game đầy đủ.
+Nguồn cấu hình duy nhất trong code là `TEMP_R1A_UNITS` và `TEMP_R1A_SLOTS` ở `src/game/Battle.ts`. Slot 1 và 5 đều Trường Kiếm nhưng giữ hai bộ đếm CD riêng; dùng chung Vàng với ba slot còn lại. Giá/CD được hiển thị theo bảng này trên từng nút.
+
+Địch tái sử dụng profile, không có hệ số buff bí mật theo phe. Màu xanh/đỏ phân biệt phe; hình và ký hiệu TK/RI/KH/GD phân biệt loại. Bảng không có giáp, kỹ năng, hiệu ứng khắc chế hoặc cân bằng chiến dịch. Cùng phe có thể chồng hình; chưa có điều phối đội hình hay giới hạn quân được duyệt.
