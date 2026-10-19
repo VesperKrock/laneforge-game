@@ -1,0 +1,60 @@
+:root { font-family: "Segoe UI", system-ui, sans-serif; color: #e1e8df; background: #0c1215; font-synthesis: none; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; }
+button:focus-visible, a:focus-visible { outline: 3px solid #f4ca7e; outline-offset: 5px; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+.shell { max-width: 1184px; margin: 0 auto; padding: 0 40px; }
+.masthead { display: flex; justify-content: space-between; align-items: center; padding: 27px 0; border-bottom: 1px solid #26302e; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 17px; font-weight: 800; letter-spacing: .18em; text-decoration: none; color: inherit; }
+.brand-mark { display: grid; place-items: center; width: 33px; height: 33px; color: #101816; background: #d5b576; font-size: 13px; letter-spacing: -.06em; transform: skew(-7deg); }
+.build-tag { color: #a3afa6; font-size: 11px; font-weight: 600; letter-spacing: .15em; }
+.build-tag span { color: #546256; padding: 0 9px; }
+.intro { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 36px 0 27px; }
+.eyebrow { font-size: 10px; color: #a8b4a8; letter-spacing: .2em; font-weight: 700; margin: 0 0 10px; }
+h1 { font-size: clamp(29px, 3.8vw, 43px); line-height: 1.14; letter-spacing: -.045em; margin: 0 0 13px; font-weight: 650; }
+.lede { font-size: 14px; color: #a4afa7; margin: 0; line-height: 1.6; }
+.start-button { flex-shrink: 0; background: #dbbc80; color: #182019; border: 1px solid #dbbc80; border-radius: 3px; min-width: 137px; min-height: 46px; padding: 10px 22px; font-size: 14px; font-weight: 700; }
+.start-button:hover { background: #f0cf91; }
+.battle-panel { border: 1px solid #31413a; border-radius: 5px; overflow: hidden; background: #0c191e; }
+.battle-topline { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid #263d38; font-size: 10px; color: #a5b8ab; letter-spacing: .12em; }
+.signal { display: inline-block; height: 6px; width: 6px; border-radius: 50%; background: #79c6a4; margin-right: 7px; }
+#battle-status { letter-spacing: 0; font-size: 12px; text-align: right; color: #dbe7d8; }
+#battle-status[data-phase="won"] { color: #81e5bf; }
+#battle-status[data-phase="lost"] { color: #f6aa95; }
+.base-readouts { display: flex; justify-content: space-between; padding: 17px 24px 0; font-size: 10px; color: #76cbb3; letter-spacing: .08em; }
+.base-readouts span:last-child { text-align: right; color: #e7a08b; }
+.base-readouts strong { display: block; margin-top: 6px; color: #e3e8dc; font-size: 17px; letter-spacing: 0; font-weight: 550; font-variant-numeric: tabular-nums; }
+#battlefield { position: relative; width: 100%; aspect-ratio: 12 / 5; }
+#battlefield canvas { display: block; }
+.battle-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 45px; padding: 10px 20px; font-size: 11px; color: #a0afa3; background: #14211f; border-top: 1px solid #2a3b33; }
+.battle-foot > span:last-child { flex-shrink: 0; color: #a0afa3; }
+.battle-foot b { color: #d4dccb; font-weight: 600; }
+.deployment { padding-top: 27px; }
+.deployment-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px; gap: 12px; }
+h2 { margin: 0; font-size: 19px; font-weight: 550; letter-spacing: -.02em; }
+.gold-readout { display: grid; grid-template-columns: auto auto; column-gap: 13px; align-items: center; text-align: right; }
+.gold-readout > span { color: #d8bd81; font-size: 10px; letter-spacing: .09em; }
+.gold-readout strong { grid-row: span 2; color: #edce8b; font-size: 34px; line-height: 1; font-weight: 550; font-variant-numeric: tabular-nums; }
+.gold-readout small { color: #94a08f; font-size: 10px; }
+.slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.slot { position: relative; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #2a3830; border-radius: 4px; min-height: 164px; padding: 15px; background: #131e1c; color: #d2dccd; text-align: left; }
+.slot-number { color: #7f9286; font-size: 10px; font-variant-numeric: tabular-nums; }
+.unit-symbol { color: #cbb780; font-size: 38px; line-height: 1; height: 40px; margin: 4px 0 10px 9px; text-shadow: 3px 1px #689c86; }
+.slot strong { font-size: 13px; font-weight: 600; margin-bottom: 7px; }
+.slot > span:last-of-type { font-size: 10px; color: #8eaa96; }
+.slot em { font-size: 11px; font-weight: 650; font-style: normal; margin-top: 14px; color: #dfc389; }
+.active-slot { border-color: #a9905c; background: #1d2720; }
+.active-slot:not(:disabled):hover { background: #2b3829; border-color: #f4ce87; }
+.active-slot:disabled { opacity: .74; }
+.empty-slot { background: #101918; border-style: dashed; color: #95a092; }
+.empty-symbol { font-size: 28px; line-height: 40px; height: 40px; margin: 4px 0 10px; color: #42544a; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 23px 0 30px; }
+footer p { max-width: 720px; margin: 0; font-size: 10px; color: #8f9c90; line-height: 1.8; }
+.temporary-label { color: #c8b480; font-size: 9px; font-weight: 700; letter-spacing: .05em; margin-right: 9px; }
+.footer-wordmark { color: #758478; font-size: 9px; letter-spacing: .16em; flex-shrink: 0; }
+@media (min-width: 1500px) { .shell { padding-top: 20px; } .intro { padding-top: 45px; } }
+@media (max-width: 700px) { .shell { padding: 0 18px; } .masthead { padding: 20px 0; } .brand { font-size: 14px; } .intro { align-items: start; flex-direction: column; padding-top: 28px; gap: 17px; } .start-button { width: 100%; } .slots { gap: 7px; } .slot { padding: 10px 7px; min-height: 167px; } .slot strong { font-size: 11px; } .slot > span:last-of-type { font-size: 9px; line-height: 1.5; } .slot em { font-size: 10px; } .battle-topline { padding: 12px; } .battle-topline > span:first-child { font-size: 9px; letter-spacing: .05em; } #battle-status { font-size: 10px; } .base-readouts { padding: 15px 14px 0; font-size: 9px; } .base-readouts strong { font-size: 14px; } .battle-foot { align-items: start; flex-direction: column; gap: 8px; padding: 11px 12px; } h2 { font-size: 15px; } .deployment-heading .eyebrow { font-size: 9px; } .gold-readout { column-gap: 8px; } .gold-readout strong { font-size: 29px; } .gold-readout > span, .gold-readout small { font-size: 9px; } footer { align-items: start; flex-direction: column; gap: 14px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }

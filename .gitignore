@@ -1,0 +1,55 @@
+# Internal collaboration material
+/prompts/
+
+# Local environment, credentials, private keys
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+*.p8
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+*credentials*.json
+.npmrc
+.netrc
+.ssh/
+.aws/
+.azure/
+.kube/
+secrets/
+credentials/
+*session*.json
+*.har
+*.dump
+*.sql
+private/
+local-data/
+
+# Node, build, test output
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+
+# Local editor and agent state
+.vscode/
+.idea/
+.codex/
+*.code-workspace
+
+# OS/temp
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
