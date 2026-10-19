@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R1B <span aria-hidden="true">/</span> BÃI THỬ</span>
+        <span class="build-tag">R1C <span aria-hidden="true">/</span> SOLO VS BOT</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -21,16 +21,28 @@
         <button id="start" class="start-button" type="button">Bắt đầu</button>
       </section>
 
+      <section class="deployment bot-deployment" aria-labelledby="bot-title">
+        <div class="deployment-heading"><div><p class="eyebrow">BOT · TỰ ĐIỀU KHIỂN</p><h2 id="bot-title">Đối thủ cùng luật triệu hồi</h2></div><div class="gold-readout"><span>VÀNG BOT</span><strong id="bot-gold">100</strong><small>+5 / giây · tối đa 125</small></div></div>
+        <div id="bot-slots" class="slots">
+          <button class="slot" type="button" disabled><span class="unit-symbol" aria-hidden="true">TK</span><strong>Trường Kiếm</strong><span class="slot-price"></span><em class="slot-cooldown">Chờ bắt đầu</em></button>
+          <button class="slot" type="button" disabled><span class="unit-symbol" aria-hidden="true">RI</span><strong>Rìu</strong><span class="slot-price"></span><em class="slot-cooldown">Chờ bắt đầu</em></button>
+          <button class="slot" type="button" disabled><span class="unit-symbol" aria-hidden="true">KH</span><strong>Khiên</strong><span class="slot-price"></span><em class="slot-cooldown">Chờ bắt đầu</em></button>
+          <button class="slot" type="button" disabled><span class="unit-symbol" aria-hidden="true">GD</span><strong>Kiếm Giác Đấu</strong><span class="slot-price"></span><em class="slot-cooldown">Chờ bắt đầu</em></button>
+          <button class="slot" type="button" disabled><span class="unit-symbol" aria-hidden="true">GI</span><strong>Giáo</strong><span class="slot-price"></span><em class="slot-cooldown">Chờ bắt đầu</em></button>
+        </div>
+        <p id="bot-choice" role="status">Bot chưa triệu hồi.</p>
+      </section>
+
       <section class="battle-panel" aria-label="Chiến trường thử nghiệm">
         <div class="battle-topline"><span><i class="signal" aria-hidden="true"></i> CHIẾN TUYẾN 01</span><span id="battle-status" role="status">Sẵn sàng — bấm Bắt đầu</span></div>
-        <div class="base-readouts"><span>CĂN CỨ TA <strong id="player-hp">80 / 80</strong></span><span>CĂN CỨ ĐỊCH <strong id="enemy-hp">90 / 90</strong></span></div>
+        <div class="base-readouts"><span>CĂN CỨ PLAYER <strong id="player-hp">—</strong></span><span>CĂN CỨ BOT <strong id="enemy-hp">—</strong></span></div>
         <div id="battlefield" role="img" aria-label="Hai căn cứ ở hai đầu một đường ngang. Quân ta màu xanh, quân địch màu đỏ."></div>
-        <div class="battle-foot"><span id="battle-event">Bấm Bắt đầu, sau đó triệu hồi Trường Kiếm.</span><span>Lính ta: <b id="allies">0</b> <span aria-hidden="true">·</span> Đòn trúng: <b id="hits">0</b></span></div>
+        <div class="battle-foot"><span id="battle-event">Bấm Bắt đầu để đấu với Bot.</span><span>Lính ta: <b id="allies">0</b> <span aria-hidden="true">·</span> Đòn trúng: <b id="hits">0</b></span></div>
       </section>
 
       <section class="deployment" aria-labelledby="deployment-title">
-        <div class="deployment-heading"><div><p class="eyebrow">TUYẾN TRIỆU HỒI</p><h2 id="deployment-title">Năm slot. Năm loại quân.</h2></div><div class="gold-readout"><span>VÀNG DÙNG CHUNG</span><strong id="gold">100</strong><small>+5 / giây · tối đa 125</small></div></div>
-        <div class="slots">
+        <div class="deployment-heading"><div><p class="eyebrow">PLAYER · BẠN ĐIỀU KHIỂN</p><h2 id="deployment-title">Năm slot. Năm loại quân.</h2></div><div class="gold-readout"><span>VÀNG PLAYER</span><strong id="gold">100</strong><small>+5 / giây · tối đa 125</small></div></div>
+        <div id="player-slots" class="slots">
           <button id="summon" class="slot active-slot" type="button" disabled><span class="slot-number">01</span><span class="unit-symbol" aria-hidden="true">TK</span><strong>Trường Kiếm</strong><span class="slot-price"></span><small class="slot-note"></small><em id="cooldown" class="slot-cooldown">Chờ bắt đầu</em></button>
           <button id="summon-2" class="slot active-slot" type="button" disabled><span class="slot-number">02</span><span class="unit-symbol" aria-hidden="true">RI</span><strong>Rìu</strong><span class="slot-price"></span><small class="slot-note"></small><em class="slot-cooldown">Chờ bắt đầu</em></button>
           <button id="summon-3" class="slot active-slot" type="button" disabled><span class="slot-number">03</span><span class="unit-symbol" aria-hidden="true">KH</span><strong>Khiên</strong><span class="slot-price"></span><small class="slot-note"></small><em class="slot-cooldown">Chờ bắt đầu</em></button>
@@ -39,7 +51,7 @@
         </div>
       </section>
 
-      <footer><p><span class="temporary-label">TẠM THỜI / CHƯA CÂN BẰNG</span> Mỗi loại quân có một slot, được triệu hồi nhiều lần. Vàng chung, hồi chiêu riêng. TK = Trường Kiếm · RI = Rìu · KH = Khiên · GD = Kiếm Giác Đấu · GI = Giáo. Chưa có Spell Card hay PvP.</p><span class="footer-wordmark" aria-hidden="true">FORGE YOUR LINE.</span></footer>
+      <footer><p><span class="temporary-label">TẠM THỜI / CHƯA CÂN BẰNG</span> Mỗi bên có Vàng riêng, năm slot không trùng loại và CD từng slot. Cận chiến được chồng vị trí; Giáo hỗ trợ phía sau, vẫn tự chiến đấu khi thiếu cận chiến. Ẩn tab tạm dừng trận local. TK = Trường Kiếm · RI = Rìu · KH = Khiên · GD = Kiếm Giác Đấu · GI = Giáo. Chưa có Spell Card hay PvP.</p><span class="footer-wordmark" aria-hidden="true">FORGE YOUR LINE.</span></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

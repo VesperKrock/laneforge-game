@@ -4,14 +4,15 @@ export const DEMO = Object.freeze({
   height: 400,
   playerBaseX: 110,
   enemyBaseX: 850,
-  playerBaseHp: 80,
-  enemyBaseHp: 90,
+  baseHp: 240,
   initialGold: 100,
   maxGold: 125,
   goldPerSecond: 5,
   spawnOffset: 14,
-  minSpacing: 24,
 });
+
+// TEMP_R1C: formation/cadence experiments; unit stats and economy stay TEMP_R1B.
+export const TEMP_R1C = Object.freeze({ supportOffset: 24, botDecisionSeconds: 0.75 });
 
 export const TEMP_R1B_UNITS = {
   sword: { name: 'Trường Kiếm', mark: 'TK', role: 'Cân bằng', hp: 60, damage: 12, attackInterval: 0.65, speed: 105, cost: 25, cooldown: 2, attackRange: 28 },
@@ -23,12 +24,6 @@ export const TEMP_R1B_UNITS = {
 export type UnitKind = keyof typeof TEMP_R1B_UNITS;
 export const TEMP_R1B_SLOTS = ['sword', 'axe', 'shield', 'gladiator', 'spear'] as const;
 if (new Set<UnitKind>(TEMP_R1B_SLOTS).size !== TEMP_R1B_SLOTS.length) throw new Error('Summon slots must have unique unit types');
-export const TEMP_R1B_ENEMIES: readonly { at: number; kind: UnitKind }[] = [
-  { at: 0, kind: 'sword' }, { at: 3, kind: 'shield' }, { at: 3, kind: 'spear' },
-  { at: 6, kind: 'gladiator' },
-  { at: 10, kind: 'axe' }, { at: 14, kind: 'sword' },
-  { at: 18, kind: 'shield' }, { at: 18, kind: 'axe' },
-];
 const EPSILON = 1e-7;
 
 export type Phase = 'ready' | 'running' | 'won' | 'lost';
@@ -50,78 +45,74 @@ export interface Unit {
 
 export class Battle {
   phase: Phase = 'ready';
-  gold: number = DEMO.initialGold;
-  cooldowns: number[] = TEMP_R1B_SLOTS.map(() => 0);
-  playerHp: number = DEMO.playerBaseHp;
-  enemyHp: number = DEMO.enemyBaseHp;
+  gold: Record<Side, number> = { friendly: DEMO.initialGold, enemy: DEMO.initialGold };
+  cooldowns: Record<Side, number[]> = { friendly: TEMP_R1B_SLOTS.map(() => 0), enemy: TEMP_R1B_SLOTS.map(() => 0) };
+  playerHp: number = DEMO.baseHp;
+  enemyHp: number = DEMO.baseHp;
   elapsed = 0;
   hits = 0;
   units: Unit[] = [];
-  event = 'Bấm Bắt đầu, sau đó triệu hồi Trường Kiếm.';
+  event = 'Bấm Bắt đầu để đấu với Bot.';
+  botChoice: { slot: number; reason: string; at: number } | undefined;
   private nextId = 0;
-  private nextEnemy = 0;
+  private botDecisionIn: number = TEMP_R1C.botDecisionSeconds;
 
   start(): void {
     this.phase = 'running';
-    this.gold = DEMO.initialGold;
-    this.cooldowns = TEMP_R1B_SLOTS.map(() => 0);
-    this.playerHp = DEMO.playerBaseHp;
-    this.enemyHp = DEMO.enemyBaseHp;
+    this.gold = { friendly: DEMO.initialGold, enemy: DEMO.initialGold };
+    this.cooldowns = { friendly: TEMP_R1B_SLOTS.map(() => 0), enemy: TEMP_R1B_SLOTS.map(() => 0) };
+    this.playerHp = DEMO.baseHp;
+    this.enemyHp = DEMO.baseHp;
     this.elapsed = 0;
     this.hits = 0;
     this.units = [];
     this.nextId = 0;
-    this.nextEnemy = 0;
-    this.event = 'Địch đang tiến tới. Năm slot dùng chung Vàng, CD riêng!';
-    this.spawnEnemyIfDue();
+    this.botDecisionIn = TEMP_R1C.botDecisionSeconds;
+    this.botChoice = undefined;
+    this.event = 'Solo vs Bot — mỗi bên có Vàng và năm CD riêng.';
   }
 
-  canSummon(slot: number): boolean {
-    if (!Number.isInteger(slot) || slot < 0 || slot >= TEMP_R1B_SLOTS.length) return false;
+  canSummon(side: Side, slot: number): boolean {
+    if ((side !== 'friendly' && side !== 'enemy') || !Number.isInteger(slot) || slot < 0 || slot >= TEMP_R1B_SLOTS.length) return false;
     const profile = TEMP_R1B_UNITS[TEMP_R1B_SLOTS[slot]];
-    return this.phase === 'running' && this.cooldowns[slot] <= 0 && this.gold >= profile.cost && this.spawnIsClear('friendly');
+    return this.phase === 'running' && this.cooldowns[side][slot] <= 0 && this.gold[side] >= profile.cost && this.spawnIsClear(side);
   }
 
-  summon(slot: number): boolean {
-    if (!this.canSummon(slot)) return false;
+  summon(side: Side, slot: number): boolean {
+    if (!this.canSummon(side, slot)) return false;
     const kind = TEMP_R1B_SLOTS[slot];
     const profile = TEMP_R1B_UNITS[kind];
-    this.gold -= profile.cost;
-    this.cooldowns[slot] = profile.cooldown;
-    this.spawn('friendly', kind);
-    this.event = `Slot ${slot + 1}: ${profile.name} — trừ ${profile.cost} Vàng thử nghiệm.`;
+    this.gold[side] -= profile.cost;
+    this.cooldowns[side][slot] = profile.cooldown;
+    this.spawn(side, kind);
+    this.event = `${side === 'friendly' ? 'Player' : 'Bot'}: ${profile.name} — trừ ${profile.cost} Vàng thử nghiệm.`;
     return true;
   }
 
   step(seconds: number): void {
     if (this.phase !== 'running' || !Number.isFinite(seconds) || seconds <= 0) return;
+    this.assertBattleInvariant();
     // A background tab never causes a large burst of movement or damage on return.
     const dt = Math.min(seconds, 0.05);
     this.elapsed += dt;
-    this.gold = Math.min(DEMO.maxGold, this.gold + DEMO.goldPerSecond * dt);
-    this.cooldowns = this.cooldowns.map(cooldown => Math.max(0, cooldown - dt));
-    this.spawnEnemyIfDue();
-
+    for (const side of ['friendly', 'enemy'] as const) {
+      this.gold[side] = Math.min(DEMO.maxGold, this.gold[side] + DEMO.goldPerSecond * dt);
+      this.cooldowns[side] = this.cooldowns[side].map(cooldown => Math.max(0, cooldown - dt));
+    }
     for (const unit of this.units) {
       if (unit.hp <= 0) continue;
       unit.attackIn -= dt;
       unit.flash = Math.max(0, unit.flash - dt);
     }
-    // Move each team front to back: the rear unit cannot pass its living teammate.
-    for (const side of ['friendly', 'enemy'] as const) {
-      const direction = side === 'friendly' ? 1 : -1;
-      const team = this.units.filter(unit => unit.side === side && unit.hp > 0)
-        .sort((a, b) => (b.x - a.x) * direction || a.id - b.id);
-      let leader: Unit | undefined;
-      for (const unit of team) {
-        const { distance } = this.targetAhead(unit);
-        const space = leader ? Math.max(0, (leader.x - unit.x) * direction - DEMO.minSpacing) : Infinity;
-        const movement = Math.min(unit.speed * dt, Math.max(0, distance - unit.attackRange), space);
-        unit.x += direction * movement;
-        leader = unit;
-      }
+    // Allies may overlap/pass each other; only opponents stop forward movement.
+    for (const support of [false, true]) {
+      const moves = this.units.filter(unit => unit.hp > 0 && (unit.kind === 'spear') === support)
+        .map(unit => ({ unit, x: this.nextX(unit, dt) }));
+      for (const { unit, x } of moves) unit.x = x;
+      this.assertBattleInvariant();
     }
-    // Stable ID order also resolves simultaneous lethal blows without a side bonus.
+    // Select every hit before applying damage: a same-tick lethal hit cannot cancel a reply.
+    const attacks: { unit: Unit; target: Unit | undefined }[] = [];
     for (const unit of [...this.units].sort((a, b) => a.id - b.id)) {
       if (unit.hp <= 0) continue;
       const { target, distance } = this.targetAhead(unit);
@@ -130,22 +121,47 @@ export class Battle {
       } else if (unit.attackIn <= EPSILON) {
         unit.attackIn += unit.attackInterval; // Carry fractional-frame overshoot, not a new full interval.
         unit.flash = 0.15;
-        if (target) target.hp = Math.max(0, target.hp - unit.damage);
-        else if (unit.side === 'friendly') this.enemyHp = Math.max(0, this.enemyHp - unit.damage);
-        else this.playerHp = Math.max(0, this.playerHp - unit.damage);
-        if (unit.side === 'friendly') {
-          this.hits += 1;
-          const name = TEMP_R1B_UNITS[unit.kind].name;
-          this.event = target ? `${name} đánh trúng lính địch!` : `${name} đánh trúng căn cứ địch!`;
-        } else this.event = target ? 'Đơn vị ta đang giao chiến.' : 'Căn cứ ta đang bị tấn công!';
-        if (this.enemyHp <= 0 || this.playerHp <= 0) {
-          this.phase = this.enemyHp <= 0 ? 'won' : 'lost';
-          this.event = this.phase === 'won' ? 'Thắng — căn cứ địch đã bị phá. Bấm Chơi lại để thử tiếp.' : 'Thua — căn cứ ta đã bị phá. Bấm Chơi lại để thử tiếp.';
-          break;
-        }
+        attacks.push({ unit, target });
       }
     }
+    for (const { unit, target } of attacks) {
+      if (target) target.hp = Math.max(0, target.hp - unit.damage);
+      else if (unit.side === 'friendly') this.enemyHp = Math.max(0, this.enemyHp - unit.damage);
+      else this.playerHp = Math.max(0, this.playerHp - unit.damage);
+      if (unit.side === 'friendly') {
+        this.hits += 1;
+        const name = TEMP_R1B_UNITS[unit.kind].name;
+        this.event = target ? `${name} đánh trúng lính địch!` : `${name} đánh trúng căn cứ địch!`;
+      } else this.event = target ? 'Đơn vị ta đang giao chiến.' : 'Căn cứ ta đang bị tấn công!';
+    }
+    this.assertBattleInvariant(); // Invalid state must never be resolved in either side's favor.
+    if (this.enemyHp <= 0 || this.playerHp <= 0) {
+      this.phase = this.enemyHp <= 0 ? 'won' : 'lost';
+      this.event = this.phase === 'won' ? 'Thắng — căn cứ địch đã bị phá. Bấm Chơi lại để thử tiếp.' : 'Thua — căn cứ ta đã bị phá. Bấm Chơi lại để thử tiếp.';
+    }
     this.units = this.units.filter(unit => unit.hp > 0);
+    // Like Player input between frames, a paid Bot summon starts acting next step.
+    this.botDecisionIn -= dt;
+    if (this.phase === 'running' && this.botDecisionIn <= EPSILON) {
+      this.botDecisionIn += TEMP_R1C.botDecisionSeconds;
+      const choice = this.chooseBotSlot();
+      if (choice && this.summon('enemy', choice.slot)) this.botChoice = { ...choice, at: this.elapsed };
+    }
+  }
+
+  private assertBattleInvariant(): void {
+    let friendlyFront = -Infinity;
+    let enemyFront = Infinity;
+    for (const unit of this.units) {
+      if (unit.hp <= 0) continue;
+      if (!Number.isFinite(unit.x) || unit.x < this.spawnX('friendly') - EPSILON || unit.x > this.spawnX('enemy') + EPSILON) {
+        throw new Error('Battle invariant violated: unit outside lane');
+      }
+      if (unit.side === 'friendly') friendlyFront = Math.max(friendlyFront, unit.x);
+      else enemyFront = Math.min(enemyFront, unit.x);
+    }
+    if (friendlyFront > enemyFront + EPSILON) throw new Error('Battle invariant violated: opposing units crossed');
+    if (this.playerHp <= 0 && this.enemyHp <= 0) throw new Error('Battle invariant violated: both bases destroyed');
   }
 
   private targetAhead(unit: Unit): { target: Unit | undefined; distance: number } {
@@ -173,18 +189,57 @@ export class Battle {
   private spawnIsClear(side: Side): boolean {
     const x = this.spawnX(side);
     // Fixed gate inside base range. Never place reinforcements behind a base attacker.
-    return !this.units.some(unit => unit.hp > 0 && (unit.side === side
-      ? Math.abs(unit.x - x) < DEMO.minSpacing - EPSILON
-      : (unit.x - x) * (side === 'friendly' ? 1 : -1) < -EPSILON));
+    return !this.units.some(unit => unit.hp > 0 && unit.side !== side
+      && (unit.x - x) * (side === 'friendly' ? 1 : -1) < -EPSILON);
   }
 
-  private spawnEnemyIfDue(): void {
-    const scheduled = TEMP_R1B_ENEMIES[this.nextEnemy];
-    if (scheduled && this.elapsed + EPSILON >= scheduled.at && this.spawnIsClear('enemy')) {
-      this.spawn('enemy', scheduled.kind);
-      this.nextEnemy += 1;
-      this.event = `Địch tiếp viện: ${TEMP_R1B_UNITS[scheduled.kind].name}.`;
+  private nextX(unit: Unit, dt: number): number {
+    const direction = unit.side === 'friendly' ? 1 : -1;
+    let supportSpace = Infinity;
+    if (unit.kind === 'spear') {
+      const melee = this.units.filter(other => other.side === unit.side && other.hp > 0 && other.kind !== 'spear');
+      if (melee.length) {
+        const front = melee.reduce((a, b) => (b.x - a.x) * direction > 0 ? b : a);
+        const supportX = direction === 1
+          ? Math.max(this.spawnX(unit.side), front.x - TEMP_R1C.supportOffset)
+          : Math.min(this.spawnX(unit.side), front.x + TEMP_R1C.supportOffset);
+        supportSpace = (supportX - unit.x) * direction;
+        if (supportSpace < -EPSILON) {
+          // Yield at normal speed when new melee arrives behind; never teleport.
+          return unit.x - direction * Math.min(unit.speed * dt, -supportSpace);
+        }
+      }
     }
+    const { distance } = this.targetAhead(unit);
+    return unit.x + direction * Math.min(unit.speed * dt, Math.max(0, distance - unit.attackRange), Math.max(0, supportSpace));
+  }
+
+  private chooseBotSlot(): { slot: number; reason: string } | undefined {
+    const own = this.units.filter(unit => unit.side === 'enemy' && unit.hp > 0);
+    const foes = this.units.filter(unit => unit.side === 'friendly' && unit.hp > 0);
+    const melee = own.filter(unit => unit.kind !== 'spear');
+    const pressure = foes.some(unit => unit.x >= DEMO.enemyBaseX - 180);
+    const durable = foes.some(unit => unit.hp >= TEMP_R1B_UNITS.axe.hp
+      && melee.some(front => Math.abs(front.x - unit.x) <= 90));
+    const supported = melee.some(front => foes.some(foe => Math.abs(front.x - foe.x) <= TEMP_R1B_UNITS.spear.attackRange));
+    // An unopposed raiding frontline needs no further spending yet.
+    if (!foes.length && melee.some(unit => unit.x < DEMO.width / 2)) return undefined;
+    const priorities: Record<UnitKind, { score: number; reason: string }> = {
+      shield: { score: !own.some(unit => unit.kind === 'shield') && (!melee.length || pressure) ? 10 : 1, reason: 'Giữ tuyến' },
+      spear: { score: supported && melee.length > own.filter(unit => unit.kind === 'spear').length ? 9 : 0, reason: 'Hỗ trợ tuyến trước' },
+      axe: { score: durable ? 9 : 2, reason: durable ? 'Đánh mục tiêu bền' : 'Tiếp viện đòn nặng' },
+      sword: { score: 5, reason: 'Bổ sung cận chiến' },
+      gladiator: { score: pressure ? 8 : 3, reason: pressure ? 'Ứng cứu nhanh' : 'Tiếp viện nhanh' },
+    };
+    const choices = TEMP_R1B_SLOTS.map((kind, slot) => ({ slot, reason: priorities[kind].reason,
+      score: priorities[kind].score - own.filter(unit => unit.kind === kind).length * 2 - (this.botChoice?.slot === slot ? 2 : 0),
+    })).filter(choice => choice.score > 0 && this.cooldowns.enemy[choice.slot] <= 0)
+      .sort((a, b) => b.score - a.score || a.slot - b.slot);
+    const preferred = choices[0];
+    // Briefly save for useful support/tank/heavy damage; emergency defense may use cheaper troops.
+    if (preferred && preferred.score >= 8 && !pressure
+      && this.gold.enemy < TEMP_R1B_UNITS[TEMP_R1B_SLOTS[preferred.slot]].cost) return undefined;
+    return choices.find(choice => this.canSummon('enemy', choice.slot));
   }
 
   private spawn(side: Side, kind: UnitKind): void {

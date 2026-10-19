@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Battle, DEMO, TEMP_R1B_UNITS } from './Battle';
 
 const LABEL_Y = { sword: 204, axe: 190, shield: 176, gladiator: 162, spear: 148 } as const;
+const DRAW_Y = { sword: 0, axe: -6, shield: 6, gladiator: -12, spear: -18 } as const;
 
 export class BattleScene extends Phaser.Scene {
   private readonly battle: Battle;
@@ -42,8 +43,8 @@ export class BattleScene extends Phaser.Scene {
     for (let y = 300; y < DEMO.height; y += 28) g.lineBetween(0, y, DEMO.width, y);
     g.fillStyle(0x334f47).fillRect(135, 278, 690, 5);
     g.lineStyle(2, 0x87977c, 0.28).lineBetween(480, 224, 480, 300);
-    this.base(DEMO.playerBaseX, 0x69ceb5, this.battle.playerHp / DEMO.playerBaseHp);
-    this.base(DEMO.enemyBaseX, 0xe88a72, this.battle.enemyHp / DEMO.enemyBaseHp);
+    this.base(DEMO.playerBaseX, 0x69ceb5, this.battle.playerHp / DEMO.baseHp);
+    this.base(DEMO.enemyBaseX, 0xe88a72, this.battle.enemyHp / DEMO.baseHp);
 
     const livingIds = new Set(this.battle.units.map(unit => unit.id));
     for (const [id, label] of this.unitLabels) {
@@ -53,14 +54,16 @@ export class BattleScene extends Phaser.Scene {
       const friendly = unit.side === 'friendly';
       const color = friendly ? 0x76dec3 : 0xf09b84;
       const direction = friendly ? 1 : -1;
-      const bob = Math.sin(this.battle.elapsed * 10 + unit.id) * 1.5;
+      // Visual offset only: combat still uses the shared lane coordinate.
+      const offset = DRAW_Y[unit.kind];
+      const bob = Math.sin(this.battle.elapsed * 10 + unit.id) * 1.5 + offset;
       g.fillStyle(0x060e10, 0.5).fillEllipse(unit.x, 280, 30, 8);
       g.fillStyle(unit.flash > 0 ? 0xffefc6 : color);
       switch (unit.kind) {
         case 'sword': g.fillRoundedRect(unit.x - 10, 246 + bob, 20, 30, 3); break;
-        case 'axe': g.fillPoints([{ x: unit.x, y: 241 + bob }, { x: unit.x + 11, y: 258 }, { x: unit.x, y: 277 }, { x: unit.x - 11, y: 258 }], true); break;
+        case 'axe': g.fillPoints([{ x: unit.x, y: 241 + bob }, { x: unit.x + 11, y: 258 + offset }, { x: unit.x, y: 277 + offset }, { x: unit.x - 11, y: 258 + offset }], true); break;
         case 'shield': g.fillCircle(unit.x, 259 + bob, 12); break;
-        case 'gladiator': g.fillTriangle(unit.x, 244 + bob, unit.x - 10, 275, unit.x + 10, 275); break;
+        case 'gladiator': g.fillTriangle(unit.x, 244 + bob, unit.x - 10, 275 + offset, unit.x + 10, 275 + offset); break;
         case 'spear': g.fillRoundedRect(unit.x - 7, 246 + bob, 14, 30, 2); break;
       }
       g.fillStyle(0xe9f3dd).fillCircle(unit.x, 239 + bob, 7);
@@ -73,8 +76,8 @@ export class BattleScene extends Phaser.Scene {
       if (unit.kind === 'axe') g.fillStyle(color).fillRect(unit.x + direction * 19 - 6, 232 + bob, 12, 9);
       if (unit.kind === 'shield') g.fillStyle(0xc1cbb2).fillRoundedRect(unit.x + direction * 13 - 5, 248 + bob, 10, 23, 3);
       if (unit.kind === 'gladiator') g.lineBetween(unit.x - direction * 8, 257 + bob, unit.x - direction * 19, 237 + bob);
-      g.fillStyle(0x071115).fillRect(unit.x - 10, 218, 20, 4);
-      g.fillStyle(color).fillRect(unit.x - 10, 218, 20 * unit.hp / unit.maxHp, 4);
+      g.fillStyle(0x071115).fillRect(unit.x - 10, 218 + offset, 20, 4);
+      g.fillStyle(color).fillRect(unit.x - 10, 218 + offset, 20 * unit.hp / unit.maxHp, 4);
       let label = this.unitLabels.get(unit.id);
       if (!label) {
         label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1B_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);

@@ -51,7 +51,21 @@ h2 { margin: 0; font-size: 19px; font-weight: 550; letter-spacing: -.02em; }
 .active-slot:disabled { opacity: .74; }
 .slot-note { font-size: 10px; line-height: 1.5; color: #aab9a5; margin-top: 8px; min-height: 30px; }
 .slot[data-state="insufficient"] .slot-cooldown { color: #f0a68c; }
+.bot-deployment { padding-top: 0; padding-bottom: 20px; }
+.bot-deployment .eyebrow, .bot-deployment h2 { color: #e7a08b; }
+.bot-deployment .slot { min-height: 124px; padding: 10px; background: #211d1c; border-color: #573e36; opacity: 1; }
+.bot-deployment .unit-symbol { color: #e7a08b; height: 25px; line-height: 25px; font-size: 18px; margin: 0 0 7px; }
+.bot-deployment .slot em { margin-top: auto; padding-top: 10px; }
+.bot-deployment .bot-chosen { border-color: #ffc0a9; background: #3a2822; }
+#bot-choice { color: #e7b4a3; font-size: 11px; min-height: 16px; margin: 10px 0 0; }
 @media (max-width: 700px) { .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .slot:last-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .bot-deployment .slots { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .bot-deployment .slot { min-height: 145px; padding: 7px 4px; overflow-wrap: anywhere; }
+  .bot-deployment .slot:last-child { grid-column: auto; }
+  .bot-deployment .slot strong { font-size: 10px; }
+  .bot-deployment .slot .slot-price, .bot-deployment .slot em { font-size: 9px; }
+}
 footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 23px 0 30px; }
 footer p { max-width: 720px; margin: 0; font-size: 10px; color: #8f9c90; line-height: 1.8; }
 .temporary-label { color: #c8b480; font-size: 9px; font-weight: 700; letter-spacing: .05em; margin-right: 9px; }

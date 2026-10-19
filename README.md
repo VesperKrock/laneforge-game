@@ -3,13 +3,15 @@ A 2D lane-based strategy game featuring weapon classes, spell cards, and tactica
 
 LaneForge là game chiến thuật/thủ thành 2D trên một chiến tuyến ngang: chuẩn bị năm slot, chọn thời điểm triệu hồi bằng Vàng + Cooldown, để đơn vị tự tiến và giao chiến.
 
-## Bản thử local R1B
+## Bản thử local R1C — Solo vs Bot
 
-Phaser 3 + TypeScript + Vite. Kế thừa R1A `1086c8a`, R1B dùng năm slot cố định: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Giáo. **Mỗi loại có tối đa một slot**, nhưng có thể triệu hồi nhiều bản sao từ slot đó. Vàng chung, CD riêng. Nút hiển thị giá/CD/tầm và trạng thái sẵn sàng, hồi chiêu, thiếu Vàng hoặc chờ lối ra trống; lệnh bị từ chối không mất Vàng/CD.
+Phaser 3 + TypeScript + Vite, kế thừa R1B đã công bố tại `add1f73`. Hai bên cùng năm loại duy nhất: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Giáo. Mỗi loại một slot, được triệu hồi nhiều bản sao. **Mỗi bên có 100 Vàng ban đầu, +5/giây, trần 125 và năm CD riêng**, cùng giá và cùng kiểm tra triệu hồi. Bỏ tám quân PvE miễn phí.
 
-Giáo có tầm 58, các quân còn lại tầm 28; Giáo sau Khiên có thể hỗ trợ đầu tuyến. Quân tự tiến, giữ khoảng tâm 24 và không vượt đồng đội, đánh địch sống gần nhất phía trước (cùng khoảng cách chọn ID thấp hơn), rồi mới đánh nhà đúng tầm. PvE có tám quân theo sáu mốc từ 0 đến 18 giây, gồm cặp Khiên/Giáo và tiếp viện Rìu. Đợt đến hạn chờ cửa spawn trống, không lặp vô hạn. Xem [chỉ số TEMP_R1B](docs/UNITS.md) và [lịch PvE/kết quả thử](docs/GAME_DESIGN.md).
+Player điều khiển năm nút của mình; năm nút Bot chỉ để quan sát Vàng/CD, loại vừa chọn và lý do ngắn. Bot quyết định mỗi 0.75 giây theo tuyến trước, mục tiêu bền, hỗ trợ và áp lực nhà; có thể dành tiền khi an toàn hoặc chọn quân rẻ cứu nhà. Không tiền/CD vô hạn, không AI framework/backend.
 
-**TẠM THỜI / CHƯA CÂN BẰNG:** bốn quân cũ giữ chỉ số R1A; thêm Giáo, hồi Vàng 6 → 5/giây (đầu trận 100, trần 125). Khiên chịu đòn bằng HP, không giáp/taunt. Vũ khí vẽ có thể giao nhau; spacing không phải physics theo pixel. Tiếp viện Trường Kiếm liên tục vẫn thắng được, chưa cân bằng chiến dịch. Chưa có editor, Spell Card, Kim Cương, campaign, lưu game hay PvP; không thêm dependency, backend, tài khoản hoặc analytics. Chỉ làm local, chưa stage/commit/push/deploy R1B.
+Cận chiến được chồng vị trí và cùng tấn công, quân nhanh vượt đồng đội. Giáo giữ phía sau tuyến cận chiến, được chồng Giáo; thiếu cận chiến vẫn tự tiến/đánh, khi cận chiến mới tới thì nhường bằng chuyển động liên tục. Địch vẫn chặn đường; mục tiêu là địch sống gần nhất phía trước, tie-break ID. Xem [luật và kết quả thử](docs/GAME_DESIGN.md), [chỉ số](docs/UNITS.md).
+
+**TẠM THỜI / CHƯA CÂN BẰNG:** giữ toàn bộ profile và kinh tế R1B; Owner yêu cầu HP nhà **240/240**, dùng một cấu hình gốc `DEMO.baseHp`; vẫn phá nhà về 0 để kết thúc. Offset Giáo 24, nhịp Bot và ưu tiên giữ nguyên heuristic thử nghiệm. Di chuyển được tính cùng trạng thái; đòn cùng bước nhận đủ sát thương thay vì ID thấp hủy đòn trả. Owner chốt **không có Hòa**: hai phe phải giao chiến, không đi xuyên địch. Trạng thái đảo chiến tuyến hoặc hai nhà cùng bị phá bị báo lỗi bất biến, không chọn phe thắng theo thứ tự xử lý. Hình/nhãn quân chồng nhau có thể che nhau. Chưa có Spell Card, Kim Cương, PvP networking, level, lưu dữ liệu hoặc hệ thống phụ. R1C chỉ local, dừng trước stage/commit/push/deploy.
 
 ## Chạy local
 
@@ -20,7 +22,7 @@ npm install --ignore-scripts
 npm run dev
 ```
 
-Mở `http://127.0.0.1:5173/laneforge-game/`. Bấm **Bắt đầu** → **Trường Kiếm**; chờ CD rồi triệu hồi tiếp. Bấm **Chơi lại** để reset. Để địch tự tiến mà không triệu hồi sẽ dẫn tới thua. Bản thử giới hạn bước thời gian khi tab bị ẩn, không mô phỏng bù cả khoảng thời gian vắng mặt.
+Mở `http://127.0.0.1:5173/laneforge-game/`. Bấm **Bắt đầu**, chọn quân ở phần **PLAYER**; quan sát Bot phía trên chiến trường. Thử Rìu → Giáo → Trường Kiếm → Giác Đấu → Khiên rồi tiếp viện theo tình hình. Bấm **Chơi lại** để reset. Để địch tự tiến mà không triệu hồi sẽ dẫn tới thua. Ẩn tab tạm dừng trận local, không mô phỏng bù. UI minh bạch Bot không thay thế xác thực trạng thái/thời gian/lệnh cần có cho PvP tương lai.
 
 ```sh
 npm run build
@@ -51,11 +53,9 @@ Scanner nội bộ kiểm tra allowlist, tracked/staged/untracked candidates, ig
 
 ## GitHub Pages
 
-URL R1A đã công bố: **https://vesperkrock.github.io/laneforge-game/**. Code R1B hiện chỉ được phép kiểm tra local; không coi site đang phục vụ R1B trước khi được duyệt, push và xác minh deploy.
+URL R1B đã công bố và kiểm chứng: **https://vesperkrock.github.io/laneforge-game/** tại `add1f736f9c2953f0a6df3f68aeed937be007aac`. R1C hiện chỉ được phép local; build/browser PASS không có nghĩa Pages đã cập nhật.
 
-Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài từ lockfile, build, kiểm tra security rồi upload **chỉ `dist/`**. Các action chính thức được pin bằng commit SHA; checkout không giữ credentials.
-
-Nguồn Pages đã được cấu hình **GitHub Actions** ở R0B. Không sửa workflow/settings trong R1B. Commit/push R1B chỉ được thực hiện sau khi Owner duyệt đúng phạm vi trong hội thoại. Sau push phải kiểm tra Actions thành công và mở URL để xác nhận thao tác triệu hồi, CD, thắng/thua, resize và tải assets; không suy ra Pages live từ build local.
+Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài lockfile, build, security gate rồi upload **chỉ dist/**. Action được pin SHA, checkout không giữ credentials; Pages source đã là GitHub Actions. Không sửa dependency, workflow hoặc settings trong R1C. Cần Owner duyệt manifest R1C riêng trước stage/commit/push/deploy; sau publish mới kiểm tra lại Actions và site.
 
 Hướng dẫn nền tảng: [Vite project Pages/base path](https://vite.dev/guide/static-deploy.html#github-pages), [GitHub custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Node LTS](https://nodejs.org/en/about/previous-releases).
 
