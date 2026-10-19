@@ -1,111 +1,159 @@
 # LaneForge — Game design baseline
 
-Baseline từ yêu cầu Owner R0A/R0B/R1A/R1B/R1C, chưa phải specification game hoàn chỉnh.
+Nguồn: yêu cầu Owner R0A–R1D. Đây là prototype, chưa phải specification/cân bằng game hoàn chỉnh.
 
 ## CONFIRMED BY OWNER
 
-- Chiến thuật/thủ thành 2D, một chiến tuyến ngang, hai căn cứ; quân tự tiến và tự đánh.
-- Năm slot, mỗi loại tối đa một slot; được triệu hồi nhiều bản sao nếu đủ Vàng và CD.
-- R1C thử **Solo vs Bot**: hai bên có Vàng và năm CD riêng, cùng giá và cùng đường kiểm tra triệu hồi. Player chỉ điều khiển phe mình; lựa chọn đã thực hiện của Bot quan sát được.
-- R1C bỏ lịch tám quân miễn phí R1B. Bot quyết định theo trạng thái hiện tại, tiếp tục tới khi trận kết thúc; không buff ngầm hay ép kết quả theo thời gian.
-- Thử nghiệm đội hình R1C cho cận chiến chồng vị trí và cùng đánh; Giáo ưu tiên hỗ trợ sau cận chiến, được chồng Giáo và vẫn chiến đấu khi không có cận chiến.
-- Ưu tiên PvE; Solo vs Bot local không phải PvP online. Spell Card ba bậc thuộc thiết kế tương lai, xem [SPELL_CARDS](SPELL_CARDS.md); chưa triển khai trong vòng này.
-- Không có kết quả Hòa trong luật thông thường; quân khác phe phải chặn nhau và giao chiến trước khi phá nhà. Cận chiến cùng phe vẫn được chồng nhau.
-- **ĐƠN GIẢN NHƯNG HIỆU QUẢ**: kế thừa code Phaser/TypeScript/Vite, không AI framework/backend/hệ thống phụ.
+- Chiến thuật 2D trên một chiến tuyến ngang; quân tự tiến/tự đánh, phá nhà về 0 để thắng/thua.
+- Năm slot, mỗi loại tối đa một slot; nhiều bản sao cùng loại được triệu hồi nếu đủ Vàng/CD.
+- R1D cho chọn năm loại khác nhau từ sáu quân trước trận; mặc định năm quân R1C. Bot mang cùng năm loại nhưng tự quyết định triệu hồi.
+- Cận chiến cùng phe được chồng/vượt nhau và cùng đánh; Giáo chủ động kite kể cả đứng riêng, vẫn ưu tiên hỗ trợ sau cận chiến, được chồng Giáo. Chưa áp giới hạn stack ba quân.
+- Quân khác phe chặn nhau, không đi xuyên để phá nhà. Không có Hòa trong luật thông thường; vi phạm bất biến phải báo lỗi, không ưu tiên Player/Bot.
+- Giữ hai nhà 240 HP, cùng kinh tế/giá/CD. Không tăng HP hoặc sửa giá/CD năm quân cũ trong R1D.
+- Phong cách B: đủ thời gian phản ứng/tiếp viện. Khoảng 4–7s duel, 8–12s Khiên và 60–120s trận là định hướng, không phải điều kiện ép kết quả.
+- PvE local trước; chưa Spell Card, Kim Cương, level, skin, tài khoản, lưu dữ liệu, backend hoặc PvP online.
+- **ĐƠN GIẢN NHƯNG HIỆU QUẢ:** kế thừa Phaser/TypeScript/Vite, không framework combat/AI mới.
 
-## Baseline đã công bố
+## Baseline và quyền phát hành
 
-R0B `19aa892` xác minh web/Pages; R1A `1086c8a` mở năm slot/bốn profile. R1B `add1f736f9c2953f0a6df3f68aeed937be007aac` đã commit/push fast-forward, đối chiếu origin/main, Actions SUCCESS và kiểm chứng Pages. R1B có roster năm loại, giãn đồng đội 24 và tám địch theo lịch 0–18s; **spacing cứng và lịch đó là lịch sử, được thay bằng R1C bên dưới**. R1C chỉ làm local và cần phê duyệt riêng.
+R0B `19aa892`, R1A `1086c8a`, R1B `add1f73` là lịch sử. R1C đã commit/push/deploy riêng tại **`da7d13c46f550b5a66576253f47323260ac8deef`**, đã xác minh Actions/Pages. Fresh-check trước R1D: HEAD = origin/main = SHA này, branch main, worktree/index sạch, baseline build + 30 tests + security gate + audit PASS.
 
-## R1C — luật trận đang thử local
+R1D chỉ làm local; site public vẫn R1C. Không gộp quyền xuất bản hai vòng. **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY** trước Owner duyệt manifest R1D riêng.
 
-### Kinh tế và triệu hồi
+Revision tiếp tục đúng worktree R1D đã trình, không reset/làm lại. Preflight đối chiếu hash 11 file với snapshot lần trình trước: khớp toàn bộ, index trống, HEAD/origin/main vẫn R1C. Prompt revision nằm ngoài public repository; không stage.
 
-- Mỗi phe bắt đầu 100 Vàng, hồi 5/giây, trần 125. Hai mảng CD riêng; cùng năm profile `TEMP_R1B_UNITS` và thứ tự `TEMP_R1B_SLOTS`. Không sửa HP/DMG/nhịp đánh/tốc chạy/giá/CD/tầm quân R1B.
-- `canSummon(side, slot)` / `summon(side, slot)` trong `src/game/Battle.ts` là đường xác thực duy nhất cho cả Player lẫn Bot: phe/slot hợp lệ, trận đang chạy, đủ Vàng, hết CD và cửa không nằm sau một địch chắn. Lệnh bị từ chối không đổi trạng thái.
-- Đồng đội tại cửa không cản spawn; nhiều loại có thể xuất hiện cùng tọa độ. Bot không có spawn miễn phí, tiền vô hạn hoặc CD rút ngắn.
-- Theo phản hồi Owner trước duyệt R1C, HP nhà **240 Player / 240 Bot**, dùng một cấu hình gốc `DEMO.baseHp = 240` cho khởi tạo/reset, UI và thanh HP. Đây là giá trị thử được Owner yêu cầu, chưa phải cân bằng cuối.
-- Phá căn cứ về 0 để thắng/thua, không giới hạn thời gian hoặc điều kiện ép thắng bí mật. Game over đóng băng mô phỏng. Restart xóa quân, cả hai pool Vàng/CD, lựa chọn và nhịp quyết định Bot.
+## Luật đối xứng kế thừa R1C
 
-### Rà soát đối xứng sau phản hồi Owner
+Mỗi phe có 100 Vàng đầu trận, +5/giây, trần 125, năm CD riêng; cùng `TEMP_R1D_UNITS`, cùng `Battle.loadout`, cùng `canSummon(side, slot)` / `summon(side, slot)`. Lệnh sai phe/slot, thiếu Vàng/CD, chưa chạy hoặc cửa nằm sau địch đều bị từ chối mà không đổi trạng thái. Không spawn miễn phí, đợt cố định hoặc hệ số bí mật.
 
-- **Không tiêu tiền (fixture chặn mọi lệnh chi Vàng, không sửa hàm cập nhật):** tại 0/1/2/3/4/5s, cả hai phe lần lượt có 100/105/110/115/120/125; sau đó cùng giữ trần 125. So sánh bằng nhau ở mỗi bước 0.01s, không chỉ ở đầu/cuối.
-- **Có tiêu tiền:** trong bốn giây đầu Player không triệu hồi có 120; Bot đã trả 110 cho các lệnh hợp lệ nên còn 10. Hai bên cùng nhận 20 Vàng; chênh số dư là chi tiêu, không phải khác tốc hồi. Khi chạm trần, phải tính từng bước `min(125, số dư + thu nhập) - chi trong bước`, không cộng dồn thu nhập đã bị trần cắt.
-- **Spawn và CD:** cả hai dùng cùng vị trí spawn phản chiếu, giá/CD và validator. Bot quyết định ở ranh giới cuối bước, quân mới bắt đầu tiến/đánh ở bước tiếp theo giống input Player giữa các frame; tránh Bot được tiến miễn phí ngay bước sinh ra. Heuristic/điểm/nhịp 0.75s không thay đổi.
-- **Di chuyển:** tính vị trí tiếp theo từ cùng trạng thái cho mỗi nhóm trước khi áp dụng; cận chiến rồi Giáo cho cả hai phe. Không để quân đầu mảng làm thay đổi vị trí mà quân đối phương sau mảng quan sát trong cùng lượt di chuyển.
-- **Combat:** đã tái hiện lỗi cũ hai quân giống nhau cùng đủ đòn chí mạng nhưng ID thấp hạ trước và né đòn trả. Nay chọn toàn bộ đòn hợp lệ trước rồi mới áp sát thương; hai quân có thể cùng chết. Kiểm tra đổi ID, đảo mảng và phản chiếu cả đội hình/target cho kết quả phản chiếu tương ứng. ID thấp chỉ còn phân xử các mục tiêu cùng khoảng cách, không hủy đòn đối phương cùng bước.
-- **Game over:** xét sau toàn bộ sát thương của bước. Theo quyết định Owner, không có Hòa. Hai nhà cùng về 0 là vi phạm bất biến, được báo lỗi thay vì ưu tiên phe xử lý trước; xem chứng minh và test hồi quy bên dưới. Không thêm bộ đếm thời gian ép kết quả.
+Hai nhà dùng `DEMO.baseHp = 240` khi tạo/reset/UI. Game over xét sau toàn bộ sát thương của bước, đóng băng mô phỏng; Chơi lại reset quân/Vàng/CD/nhịp Bot và giữ đội hình. Về chuẩn bị kết thúc lượt local hiện tại, reset về trạng thái chờ để đổi quân; không lưu dữ liệu.
 
-### Vì sao không có Hòa từ trận hợp lệ
+Kiểm tra có kiểm soát không tiêu tiền: cả hai cùng 100/105/110/115/120/125 tại 0/1/2/3/4/5s, rồi giữ trần, bằng nhau ở từng bước 0.01s. Trong bốn giây đầu nếu Player không tiêu, Player có 120; Bot chi 110 nên còn 10, cả hai cùng thu 20. Ledger từng bước là `min(125, số dư + thu nhập) - chi trong bước`; không coi số dư thấp do chi tiêu là lỗi hồi Vàng.
 
-Owner đã chốt **không có kết quả Hòa trong luật thông thường**, quân hai phe không được đi xuyên nhau. Test Hòa trước đây đặt sẵn Player ở x=822 sát nhà Bot và Bot ở x=138 sát nhà Player: đã đảo thứ tự chiến tuyến ngay từ đầu. Đó là trạng thái dựng nhân tạo không có chuỗi triệu hồi/di chuyển hợp lệ dẫn tới; đề xuất Hòa dựa trên test đó được loại bỏ.
+Di chuyển tính từ cùng snapshot cho từng nhóm, cả hai phe dùng chung thứ tự. Revision cho **Giáo di chuyển trước, cận chiến sau**: quân đuổi phải tới tọa độ mới, tránh dừng ở vị trí cũ rồi Giáo lùi khiến đòn luôn thiếu tầm. Hỗ trợ sau đồng minh có thể trễ một bước khi tuyến trước vừa tiến; không buff tốc/tầm. Mọi đòn chính/phụ hợp lệ được chọn từ trạng thái sống trước sát thương rồi áp dụng cùng bước; chết cùng bước không hủy đòn đã chọn. Đổi ID/đảo mảng/phản chiếu hai phe được kiểm tra. Bot sinh quân ở cuối bước, quân mới hành động bước kế tiếp như input Player giữa hai frame.
 
-Bất biến xét quân sống là `max(x_Player) <= min(x_Bot)`. Với cấu hình hiện tại:
+### Vì sao không có Hòa hợp lệ
 
-- Spawn tại 124/836, nằm phía trong khoảng đánh nhà. Tầm ngắn nhất 28 lớn hơn offset spawn 14: quân tiến đánh nhà dừng ở tối đa x=822 (Player) / tối thiểu x=138 (Bot), nên tiếp viện xuất hiện phía đối diện hợp lệ, không sau lưng địch. Validator vẫn chặn cửa đã nằm sau một địch.
-- Tiến quân bị giới hạn bởi địch gần nhất; khi vào tầm thì dừng. Bước mô phỏng tối đa 0.05s, tổng dịch chuyển lớn nhất hai quân là 13.8, nhỏ hơn tầm ngắn nhất 28; không vượt qua nhau trong cùng bước. Giáo nhường tuyến bằng lùi về nhà mình, không đi xuyên địch. Đồng đội được chồng/vượt nhau không làm đảo thứ tự hai phe.
-- Khi cả hai phe còn quân sống, luôn có địch giữa mỗi quân và căn cứ đối phương. Target chọn quân chắn gần nhất. Tất cả target của bước được chọn trước khi áp sát thương: kể cả quân chắn cuối cùng chết trong bước đó, các đòn khác cũng không đổi sang nhà ngay trong bước.
-- Vì vậy không thể xếp đòn đánh cả hai nhà trong cùng một bước hợp lệ. Khi một nhà về 0, game over đóng băng mô phỏng; không có bước sau phá nốt nhà kia.
+Test Hòa cũ đặt Player x=822 và Bot x=138: hai đội đã vượt nhau, không phải trạng thái sinh ra từ luật hợp lệ. Bất biến quân sống: `max(x_Player) <= min(x_Bot)`.
 
-Giữ kiểm tra bất biến ở đầu bước, sau di chuyển và trước xét kết quả. Quân ngoài lane, hai đội xuyên nhau hoặc cả hai nhà đã bị phá là **lỗi trạng thái**, phát sinh lỗi lập trình thay vì gán Hòa/thắng/thua hay ưu tiên Player/Bot. Guard không phải một kết quả trận mới hoặc cơ chế sửa tọa độ tự động.
+- Spawn 124/836 nằm trong tầm đánh nhà: tầm ngắn nhất 28 lớn hơn offset cửa 14. Tiếp viện không xuất hiện sau lưng quân đang đánh nhà; validator chặn cửa nếu đã nằm sau địch.
+- Tiến quân bị giới hạn bởi địch gần nhất. Mỗi bước cap 0.05s, tổng dịch chuyển lớn nhất hai quân 13.8 < tầm ngắn nhất 28. Giáo lùi về phía nhà mình; overlap đồng đội không làm đảo thứ tự hai phe.
+- Khi hai phe còn quân sống, địch chắn trước căn cứ; target không bỏ qua quân sống. Quân chắn chết trong bước cũng không đổi các đòn đã chọn sang nhà.
+- Do đó không thể xếp đòn lên cả hai nhà trong một bước hợp lệ; khi một nhà về 0 thì dừng trận.
 
-Kiểm chứng mới: năm cặp quân đối xứng được trả Vàng và spawn qua `summon`, kiểm soát không bổ sung thêm input, đều giao chiến rồi cùng chết trước khi chạm nhà. Thêm **300 lượt mô phỏng từ start/spawn hợp lệ** (seed 1–60 × các bước 1/20, 1/30, 1/60, 1/100 và 0.2s bị cap): kiểm tra 491,868 trạng thái, 7,710 bước có sát thương nhà; không xuyên phe, không đánh xuyên quân vào nhà và không có hai nhà cùng 0. Cả 300 lượt kết thúc (166 thắng / 134 thua), dài nhất 141.10s trong giới hạn kiểm thử 180s. Đây là các script kiểm tra, không phải win-rate người chơi hay bằng chứng thay thế lập luận bất biến.
+Guard ở đầu bước/sau di chuyển/trước xét kết quả báo lỗi quân ngoài lane, hai phe xuyên nhau hoặc hai nhà cùng 0. Không tự sửa tọa độ hoặc phân xử phe thắng. AOE Búa chỉ trúng quân phụ sống, không splash nhà nên giữ lập luận trên.
 
-### Bot — TEMP_R1C / heuristic, chưa khóa
+## TEMP_R1D — thay đổi combat
 
-Quyết định mỗi **0.75 giây mô phỏng**, tối đa một lệnh hợp lệ mỗi lần; không dùng click DOM. Xét quân sống, tiền/CD, thành phần đội hình và khoảng cách Player tới nhà Bot:
+### Rìu
 
-1. Khi thiếu tuyến cận chiến hoặc bị ép nhà, ưu tiên Khiên nếu chưa có Khiên sống.
-2. Có cận chiến bảo vệ đang tiếp xúc mục tiêu trong tầm hỗ trợ: cân nhắc Giáo. Rìu được ưu tiên trước mục tiêu còn nhiều HP ở gần tuyến giao chiến.
-3. Trường Kiếm bổ sung thông thường; Giác Đấu dùng phản ứng nhanh/rẻ khi bị ép nhà. Điểm giảm theo số quân cùng loại còn sống và loại vừa chọn, tránh lặp máy móc.
-4. Khi không nguy cấp, có thể dành Vàng cho ưu tiên mạnh chưa đủ tiền. Khi bị ép nhà, chọn quân hợp lệ vừa túi tiền thay vì đợi món đắt. Không còn hành động phù hợp thì chờ.
-5. Không có đối thủ sống và cận chiến đã sang nửa bản đồ đối phương: chờ quan sát thay vì tiếp tục tiêu tiền không cần thiết.
+Giữ 88 HP / 26 DMG / giá 35 / CD 3.2s / tốc 72 / tầm 28 / chu kỳ 1.2s. Khi lần đầu xác nhận mục tiêu trong tầm, bắt đầu chờ **0.6s**, chưa gây sát thương. Ví dụ bước 0.01s: contact ở 0.01, đánh ở 0.61 / 1.81 / 3.01. Có sai số tối đa một bước do lấy mẫu; không đánh trước 0.6s.
 
-Tham số tạm: áp lực nhà trong 180 tọa độ; mục tiêu bền còn ít nhất 88 HP và gần cận chiến trong 90; hỗ trợ xét tầm 58. Ưu tiên nền Khiên 10 / Giáo hoặc Rìu phù hợp 9 / Giác Đấu khẩn cấp 8 / Trường Kiếm 5; trừ 2 cho mỗi quân cùng loại sống và 2 nếu vừa chọn cùng slot. Chỉ dành tiền nếu ưu tiên còn ít nhất 8 và không bị ép nhà. Đồng điểm chọn slot thấp hơn. Các số này **do triển khai đề xuất để thử**, không phải cân bằng Owner đã khóa.
+Handoff trong tầm đã đúng trước revision: mục tiêu chết giữa hai bước thì chọn địch sống gần nhất mới, giữ nguyên timer; sẵn sàng được đánh ngay, chưa sẵn sàng chỉ chờ phần còn lại. Test đổi ở 0.31/0.60/0.91s xác nhận đòn tới đúng 0.61/0.61/1.81s, không bắt đầu lại cả windup/CD. Không retarget hồi tố nếu mục tiêu chết trong cùng bước đã chọn đòn.
 
-Không nhìn trước click, không planner, không ngưỡng thắng bí mật. Chính sách chỉ quan sát trạng thái hiện tại và có thể bị khai thác; không tuyên bố AI thông minh hoặc bất bại.
+Regression mới tìm thấy lỗi khác: đánh ở 0.61s, rời tầm 0.62, vào lại 0.63, code cũ xóa CD nên đánh lại 1.23 (cách 0.62s). Nay giữ CD đòn cũ chưa hết; đồng thời vào lại phải chờ windup mới 0.6s, nên đòn kế không sớm hơn 1.81. Đi/chờ không tích readiness vô hạn. Rìu/Búa đặt đủ chu kỳ sau đòn thật để frame lẻ không rút ngắn khoảng đòn; thử dt không đều 0.013/0.027/0.041s và đổi mục tiêu nhanh vẫn cách ít nhất 1.2s cho Rìu. Ba quân khác giữ cadence R1C.
 
-### Đội hình và giao chiến
+### Giáo
 
-- Cận chiến đi xuyên/đứng chồng đồng đội, không đẩy nhau. Rìu và Khiên cùng contact line đều đánh được. Địch sống phía trước vẫn chặn tiến quân; không đi xuyên địch để đánh nhà.
-- Giáo có tầm 58, cận chiến 28. Sau khi cận chiến tiến, Giáo giữ ít nhất **24 tọa độ hỗ trợ tạm** phía sau đầu tuyến; nếu đã đủ tầm có thể dừng xa hơn (ví dụ 30).
-- Nhiều Giáo được trùng vị trí. Không có cận chiến thì Giáo tự tiến và đánh. Khi cận chiến mới xuất hiện phía sau, Giáo nhường/lùi với tốc độ hiện có rồi tái lập vị trí sau; có giai đoạn chuyển tiếp đứng trước cận chiến, **không teleport**. Không lùi quá cửa spawn về phía nhà.
-- Chọn địch sống gần nhất phía trước, giữa quân và nhà địch; cùng khoảng cách chọn ID thấp hơn. Đồng đội không chắn đòn; không đánh sau lưng, friendly fire, AoE, xuyên địch hoặc taunt.
-- Đòn đánh giữ thời gian lẻ qua frame, không tích lũy đòn khi hành quân; đòn hợp lệ trong cùng bước nhận đủ sát thương trước xét kết quả, không hủy đòn trả do ID thấp. Offset dọc của hình chỉ phục vụ đọc hình, không đổi tọa độ chiến đấu.
+Owner sửa rõ: Giáo phải **chủ động kite, không cần đợi đồng minh**. Tiến 85/s, lùi **48/s**, vẫn đánh đúng nhịp 0.9s và tầm 58. Ngưỡng thử **52**, nằm trong tầm 58: có địch sống ở đó và chưa có cận chiến đồng minh đứng trước bảo vệ thì lùi về cửa nhà. Khoảng đệm 6 tránh lùi/tiến giật ở mép tầm; ngay cả hai Giáo cùng lùi trong bước cap 0.05s, độ tách thêm 4.8 < 6 nên vẫn trong tầm và có thể ổn định giao chiến. Không thêm trạng thái AI hoặc hysteresis.
 
-### UI và thời gian
+Khi cận chiến đồng minh sống ở trước trong phạm vi **96**, ưu tiên hỗ trợ sau **30**, không bỏ tuyến bảo vệ chỉ vì địch chạm Khiên. Vẫn nhường liên tục khi đồng minh tới sau, không teleport; clamp tại cửa 124/836. Chọn 30 vì tầm Giáo 58 và cận chiến 28, giữ được đòn hỗ trợ. Ngưỡng 30/96/52 là TEMP_R1D do triển khai chọn. Test có Khiên bảo vệ, hai Giáo chồng, hai Giáo đối đầu ổn định, cận chiến mới tới và truy đuổi phản chiếu hai phe.
 
-Năm nút Player tương tác, năm nút Bot luôn disabled và không có handler triệu hồi. Hai số Vàng và mười CD lấy từ trạng thái thật; hiển thị ready/thiếu Vàng/hồi chiêu. Bot vừa chọn được highlight một giây và có tên quân + lý do ngắn; không hiển thị ý định tương lai.
+Từ khoảng cách ban đầu 140 ở giữa lane, cả bốn cận chiến đã đánh trúng Giáo kite **trước khi Giáo tới cửa**. Với Giáo Player, tọa độ đòn đầu của quân đuổi: Giác Đấu 428.49, Kiếm 426.69, Rìu 378.72, Khiên 271.99, đều >124; phía Bot phản chiếu quanh 960. Giáo vừa lùi vừa gây sát thương, không bất tử. Giác Đấu bắt kịp nhưng mẫu này Giáo thắng còn 1 HP; contact ban đầu 28 thì Giác Đấu thắng. Không hardcode phe/quân thắng.
 
-Ẩn tab dừng trận local; bước trở lại giới hạn 0.05s, không bù thời gian vắng mặt. Hiển thị slot Bot là minh bạch, **không phải chống gian lận**. PvP tương lai cần xác thực trạng thái/thời gian/lệnh bằng nguồn có thẩm quyền hoặc cơ chế đồng bộ an toàn tương đương; R1C không triển khai networking.
+### Búa Chiến
 
-## Quan sát mô phỏng R1C
+Theo revision Owner: **72 HP / 26 DMG chính / 10 lên mọi địch phụ trong vùng / windup 0.9s / chu kỳ 1.8s / tốc 60 / tầm 28 / giá 45 / CD 4s**. Không còn cap hai quân phụ. Phải có mục tiêu chính sống trong tầm mới có đòn/splash; vùng đo tâm–tâm **40** quanh chính mục tiêu đó. Mỗi địch phụ sống chỉ nhận một lần, thứ tự khoảng cách rồi ID; không trùng chính/phụ, không friendly fire/quân chết/nhà. Prototype không có trạng thái bất tử. Đánh đơn chỉ 26. Không giáp, xuyên giáp, stun, knockback, chí mạng hay buff theo phe. Không tune thêm ngoài số revision.
 
-Chiến lược gọi lệnh hợp lệ theo vòng lặp mỗi 100ms, bước mô phỏng 0.02s; không giả định win-rate người chơi:
+DPS đơn lý thuyết Búa 26/1.8 ≈ **14.44**, Rìu 26/1.2 ≈ **21.67**; ba địch trong vùng nhận 26+10+10 = **46** chia sát thương mỗi đòn. Búa đắt hơn 10 Vàng, ít hơn 16 HP và windup chậm hơn; không suy ra cân bằng chỉ từ DPS. Test cụm 1/2/3/4/7 quân xác nhận không cap, mép 40 trúng nhưng 40.001 không trúng; cả hai Búa có đòn chí mạng cùng bước vẫn nhận đủ AOE từ snapshot.
 
-| Kịch bản | Kết quả / giây | Player triệu hồi / chi Vàng | HP nhà Player |
-| --- | --- | --- | --- |
-| Không triệu hồi | Thua 12.56 | 0 / 0 | 0 |
-| Một Trường Kiếm | Thua 13.32 | 1 / 25 | 0 |
-| Tiếp viện Trường Kiếm | Thua 31.38 | 10 / 250 | 0 |
-| Khiên → Giáo → Rìu → Trường Kiếm → Giác Đấu | Thắng 23.64 | 6 / 190 | 240 |
-| Rìu → Giáo → Trường Kiếm → Giác Đấu → Khiên | Thắng 40.20 | 10 / 300 | 240 |
-| Khiên → Rìu → Giác Đấu → Trường Kiếm → Giáo | Thắng 71.40 | 15 / 450 | 240 |
-| Khiên → Trường Kiếm → Giáo → Giác Đấu → Rìu | Thua 60.16 | 13 / 395 | 0 |
-| Chỉ Giáo | Thua 19.08 | 6 / 180 | 0 |
+Hình thân rộng, đầu búa vuông, nhãn BC và vòng chớp nhỏ tạm; vòng chớp là hiệu ứng, không biểu diễn chính xác vùng sát thương. Không asset/dependency mới.
 
-Trong vòng Rìu/Giáo, Bot trả 285 Vàng cho 12 quân, bốn loại xuất hiện; lệnh cuối ở 37.50s chứng minh không còn mốc dừng 18s. Các fixture riêng xác nhận cả năm lựa chọn phù hợp ngữ cảnh, không yêu cầu mỗi trận phải dùng đủ năm loại. Kiểm thử mô hình gồm ledger Vàng/CD Bot qua từng bước, hành động sau mốc 18s, lựa chọn Khiên/Rìu/Giáo/Giác Đấu/Trường Kiếm trong các tình huống riêng và các trường hợp chờ. Kiểm thử nhịp thao tác 100ms ở 20/30/60 FPS dùng vòng Rìu → Giáo → Trường Kiếm → Giác Đấu → Khiên, cho phép thắng mà không đổi chỉ số.
+## Kho quân và Bot
 
-Các thời gian 9.42–31.58s và ví dụ đổi nhịp 20ms của bản trước 240 HP đã hết hiệu lực, không dùng làm kết quả hiện tại. Kiểm tra bổ sung cả 120 hoán vị của năm slot, gửi lệnh mỗi 100ms, bước 0.02s và chặn chạy thử ở 300s: cả 120 đều kết thúc (38 thắng / 82 thua), dài nhất 71.40s; không có mẫu còn running. Đây là tập script cố định, không phải win-rate người chơi. Không thêm timeout vào gameplay; không chứng minh mọi chuỗi thao tác có thể đều kết thúc trong cùng giới hạn.
+Sáu nút chọn inline dùng button/aria-pressed; bỏ một loại rồi thêm loại khác. Chưa đủ năm thì Bắt đầu disabled và model từ chối deck sai/loại lạ/trùng. Thứ tự slot theo catalog: TK → RI → KH → GD → GI → BC, bỏ loại không chọn. Trong lúc chạy không đổi deck được; Chơi lại giữ năm loại; Về chuẩn bị cho sửa lại.
 
-## Kiểm chứng và giới hạn
+Luôn năm nút Player tương tác và năm nút Bot chỉ xem, hai pool Vàng/mười CD thật. Bot vừa mua được highlight một giây, có tên/lý do. Slot Bot không handler triệu hồi, pointer/touch/keyboard/dispatch không điều khiển được.
 
-Bộ local R1C **30/30 PASS** (49.7s): 27 mô hình/mô phỏng + 3 browser trên production preview tại `/laneforge-game/`. Browser kiểm tra 10 slot, chặn điều khiển Bot bằng pointer/touch/keyboard/dispatch, hai số Vàng, CD/lựa chọn Bot, trận đầy đủ, reset 240/240, idle defeat và viewport 390×844; không có lỗi console/network. Build/typecheck PASS; security gate PASS_HEURISTIC, 0 staged/0 tracked prompts, không phát hiện; npm audit 0 lỗ hổng. So sánh source xác nhận cấu hình 240 HP, kinh tế/giá/CD, thân hàm di chuyển/target/spawn và heuristic Bot không đổi so với bản 240 HP trước khi bỏ Hòa. Ảnh desktop/mobile chỉ là output local bị ignore; không coi giả lập là QA thiết bị thật hoặc Pages đã cập nhật. READY_FOR_APPROVAL vẫn cần Owner duyệt manifest trước xuất bản; không còn đề xuất Hòa cần duyệt.
+Bot giữ nhịp **0.75s** và heuristic R1C: Khiên giữ tuyến, Giáo hỗ trợ tuyến tiếp xúc, Rìu đánh mục tiêu bền, Giác Đấu cứu nhà, Trường Kiếm bổ sung; giảm điểm theo loại đang sống/vừa mua, dành tiền khi an toàn, không tiếp viện vô ích khi đang raid không gặp địch. R1D thêm Búa điểm nền 10 chỉ nếu có hai địch cách nhau không quá 40 và cận chiến mình cách nhóm không quá 90. Không mang Búa thì không thể chọn Búa; có Búa nhưng không có cụm phù hợp thì điểm 0. Vẫn qua chung giá/CD/validator, không dự đoán thao tác hoặc thêm deck AI.
 
-Cân bằng còn tạm: chiến lược đơn loại trong các mẫu thử thua nhanh, đội hỗn hợp có thể thắng giữ nguyên HP nhà. Kết quả nhạy với thứ tự/nhịp thao tác và diễn biến giao chiến, không cam kết cùng thời gian ở mọi FPS. Hình/nhãn cùng loại khi chồng nhiều quân có thể che nhau; chưa physics pixel, giới hạn quân hoặc QA hiệu năng trận rất dài. Giữ cảnh báo bundle Phaser >500kB.
+Ẩn tab dừng local; trở lại không mô phỏng bù. Minh bạch slot không thay thế xác thực PvP; không triển khai đồng bộ mạng.
 
-Không thêm dependency, workflow, service hoặc file public mới. Chỉ làm local, **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY** trước duyệt R1C. Site public vẫn là R1B.
+## Đối đầu trước/sau revision — mẫu có kiểm soát
+
+So sánh trực tiếp model R1D local đã trình với bản revision hiện tại, không lấy R1C thay cho “trước”. Hai đội bắt đầu cách 28 tại giữa lane, Giáo sau Khiên 30; riêng các hàng truy đuổi bắt đầu cách 140. Không tiếp viện, cô lập AI bằng CD fixture, bước 0.01s; giữ đúng HP/sát thương/tốc độ thực. Mỗi mẫu phản chiếu phe/đảo mảng có kết quả tương ứng. Thời gian từ fixture, không gồm hành quân từ căn cứ.
+
+| Tình huống | R1D trước revision | R1D revision |
+| --- | --- | --- |
+| Rìu vs Giác Đấu | Rìu thắng 1.81s, còn 46 HP | Không đổi |
+| Rìu vs Trường Kiếm | Rìu thắng 3.01s, còn 28 HP | Không đổi |
+| Giáo vs Giác Đấu, contact 28 | Giác Đấu thắng 2.45s, còn 8 HP | Không đổi, Giác Đấu đánh tới Giáo đang lùi |
+| Giáo vs Giác Đấu, xuất phát 140 | Giác Đấu thắng 3.03s, còn 8 HP | Giáo thắng 3.06s, còn 1 HP; Giác Đấu đã gây 49 sát thương |
+| Giáo vs Rìu, xuất phát 140 | Rìu thắng 2.75s, còn 58 HP | Rìu thắng 3.39s, còn 48 HP |
+| Giáo vs Khiên, xuất phát 140 | Khiên thắng 9.69s, còn 40 HP | Khiên thắng 13.17s, còn 10 HP |
+| Khiên + Giáo vs Rìu | Thắng 4.75s, Khiên 46 / Giáo 50 HP | Không đổi |
+| Búa vs Rìu | Búa thua 3.01s, Rìu còn 52 HP | Búa thua 3.01s, Rìu còn 36 HP |
+| Búa vs hai Giác Đấu chồng | Thua 1.75s; địch 20/30 HP | Thua 1.75s; địch 12/28 HP |
+| Búa vs ba Giác Đấu chồng | Thua 1.05s; địch 20/30/30 HP | Thua 1.05s; địch 12/28/28 HP |
+| Búa vs Khiên + Giáo sau 30 | Thua 3.80s; địch Khiên 114 / Giáo 34 HP | Thua 3.80s; địch Khiên 98 / Giáo 30 HP |
+| Khiên + Búa vs ba Giác Đấu | Thua 4.55s, hai địch còn 14/4 HP | Thua 4.55s, một địch còn 8 HP |
+| Khiên + Búa vs bốn Giác Đấu | Thua 2.80s, ba địch còn 22/22/38 HP | Thua 2.80s, ba địch còn 18/18/18 HP |
+| Khiên + Kiếm + Búa vs ba Giác Đấu | Thắng 2.71s; Khiên 31 / Kiếm 60 / Búa 72 HP | Không đổi |
+| Thay Búa bằng Rìu trong hàng trên | Thắng 3.01s; Khiên 31 / Kiếm 60 / Rìu 88 HP | Không đổi; Búa dọn cụm nhanh hơn 0.30s ở mẫu này |
+| Khiên + Giáo + Búa vs ba Giác Đấu | Thắng 3.60s, mất Khiên; Giáo 50 / Búa 72 HP | Thắng 2.85s, giữ Khiên 10 / Giáo 50 / Búa 72 HP |
+
+Búa có ích cho cụm đông khi có tuyến bảo vệ và sát thương bổ sung; đánh trúng mọi mục tiêu trong vùng thay vì bỏ qua quân thứ tư trở đi. Rìu vẫn hơn khi đấu đơn, rẻ hơn và mạnh hơn về DPS đơn. Búa + Khiên vẫn chưa đủ thắng ba/bốn Giác Đấu trong các mẫu này; không tự tăng số lần nữa. Búa không thành lựa chọn thắng mọi đối đầu. Những kết quả này chưa chứng minh balance cuối hoặc bao phủ mọi đội hình.
+
+Nhiều duel vẫn ngắn hơn định hướng 4–7s; không nâng HP quân cũ hoặc ép timeout để sửa cảm nhận. Giáo thắng sát nút Giác Đấu ở khoảng 140 là điểm Owner cần đánh giá, không phải lỗi “không bắt được”: có tiếp cận và gây sát thương thật trước biên.
+
+## Solo vs Bot — mẫu trước/sau revision
+
+Input hợp lệ theo vòng mỗi 100ms, dt 0.02s; tiếp viện tới hết trận, không gọi spawn trực tiếp/đổi ngân sách. Deck mặc định; hai hàng Búa dùng TK/RI/KH/GI/BC.
+
+| Thứ tự lặp | Trước revision | Revision | Player quân / chi | Bot quân / chi |
+| --- | --- | --- | --- | --- |
+| Không triệu hồi | Thua 12.56s | Thua 12.56s | 0 / 0 | 4 / 110 |
+| Chỉ Trường Kiếm | Thua 31.32s | Thua 31.32s | 10 / 250 | 10 / 250 |
+| KH → GI → RI → TK → GD | Thắng 23.00s | Thắng 22.50s | 6 / 190 | 8 / 200 |
+| RI → GI → TK → GD → KH | Thua 22.74s | Thua 21.52s | 6 / 185 | 7 / 185 |
+| KH → RI → GI → TK → GD | Thắng 73.70s | Thắng 50.16s | 11 / 340 | 14 / 340 |
+| GI → GD → KH → TK → RI | Thua 99.00s | Thắng 53.28s | 12 / 350 | 14 / 350 |
+| Chỉ Búa | Thua 23.10s | Thua 22.24s | 4 / 180 | 6 / 180 |
+| KH → BC → GI → TK → RI | Thắng 37.50s | Thắng 47.64s | 9 / 315 | 10 / 315 |
+
+Mẫu Búa Bot dùng đủ năm loại, trả 315 Vàng, lệnh cuối 43.50s; vẫn mua sau 18s, không scripted cap. Player thắng các mẫu này giữ nhà 240; khi thua nhà về 0, nhà Bot vẫn 240. Các số chi là lần lượt Player/Bot thực trả, không buff để bù tăng giá Búa.
+
+Browser end-to-end dùng thứ tự KH → GI → BC → TK → RI trên deck có Búa để kiểm tra tới thắng và restart, không ép kết quả gameplay. Vòng KH → BC → GI → TK → RI vẫn giữ trong so sánh model; thử dt 0.014/0.024s có thể thua 105.24/142.03s thay vì thắng 47.64s ở dt 0.02. Kết quả nhạy nhịp thao tác/FPS, không tuyên bố lockstep. Thời gian test browser có guard riêng, không thêm timer vào game.
+
+600 lượt từ input/spawn hợp lệ: sáu deck × seed 1–20 × năm dt (1/20, 1/30, 1/60, 1/100, 0.2 bị cap 0.05). Kiểm tra **1,117,530 trạng thái**, 14,974 bước có sát thương nhà, không xuyên phe/đánh xuyên quân/hai nhà cùng 0. Tất cả kết thúc: **338 thắng/262 thua**, dài nhất **293.43s**, trong guard test 360s. Trước revision cùng tập là 1,040,874 trạng thái, 313 thắng/287 thua, dài nhất 280.20s. Đây là script kiểm tra, không phải win-rate người chơi hoặc chứng minh mọi chuỗi input đều hữu hạn.
+
+
+
+## Kiểm chứng, giới hạn và manifest
+
+**R1D REVISION STATUS: READY_FOR_APPROVAL**, chỉ local. Build/typecheck PASS; full suite **47/47 PASS** (~1.1 phút): 43 mô hình/mô phỏng + 4 browser Chrome trên production subpath "/laneforge-game/". Browser chạy deck có Búa tới thắng và reset giữ đội hình/240 HP, idle defeat, khóa sửa khi chạy, Bot không điều khiển được, giá Búa 45 cả hai bên, keyboard/touch và viewport 390×844; không lỗi console/network. Test gồm kite solo/đuổi bắt thật/cửa lane/hai Giáo không đảo hướng vô hạn, AOE cụm 2/3/4/7 và snapshot chí mạng, Rìu handoff/ready/mất contact/đổi nhanh/frame lẻ. Không tune thêm Búa sau số Owner yêu cầu.
+
+Thất bại hồi quy đã xử lý: ca Rìu rời/vào tầm nhanh từng tạo khoảng đòn 0.62s (đã tái hiện trước sửa); fixture đứng yên đánh nhà cần tiếp tục tiến sau khi Giáo kite; kỳ vọng mọi DMG khác nhau không còn đúng vì Búa bằng 26 của Rìu; một mẫu chiến thuật từng thua nay thắng. Các kỳ vọng được cập nhật theo hành vi Owner sửa, không che lỗi bằng buff phe hoặc ép thắng.
+
+Security gate **PASS_HEURISTIC**: 22 tracked/candidate, 0 staged, 0 tracked prompts, 17 ignore checks, findings rỗng; build chỉ HTML/JS/CSS, không source map hoặc file local. `npm audit --audit-level=low`: **0 vulnerabilities**. So sánh module từ HEAD xác nhận toàn bộ `DEMO`, năm profile cũ và default loadout giữ nguyên; chỉ thêm loại Búa. Không sửa package/lockfile/workflow/security policy. Git root E:\\laneforge-game, main, HEAD và remote main vẫn ở baseline R1C; 11 file modified, 0 thêm/xóa, index 0.
+
+Hạn chế: chồng nhiều quân cùng loại vẫn che hình/nhãn; UI mobile dùng cuộn dọc, chưa QA thiết bị thật. Bundle Phaser vẫn cảnh báo >500kB. Scanner là heuristic, không chứng minh không tồn tại mọi secret/PII. Không thêm dependency, workflow, service hoặc file public mới; ảnh/script/mô phỏng phụ ở output local bị ignore.
+
+Manifest R1D dự kiến **11 file sửa, 0 thêm, 0 xóa**:
+```text
+README.md
+docs/DECISIONS.md
+docs/GAME_DESIGN.md
+docs/ROADMAP.md
+docs/UNITS.md
+index.html
+src/game/Battle.ts
+src/game/BattleScene.ts
+src/main.ts
+src/style.css
+tests/smoke.spec.ts
+```
 
 ## OPEN / PROPOSED
 
-Cân bằng quân/kinh tế/HP nhà, mức khó và ưu tiên Bot, offset Giáo, map/spawn/giới hạn quân, thời lượng trận, Spell Card/Kim Cương và kiến trúc PvP đều còn mở ngoài phạm vi đã chốt. Theo dõi [DECISIONS](DECISIONS.md), [UNITS](UNITS.md) và [ROADMAP](ROADMAP.md).
+Owner đánh giá ngưỡng kite 52, offset Giáo 30/phạm vi 96, kết quả Giáo–Giác Đấu tùy khoảng xuất phát, Búa AOE không cap và nhịp B/FPS/khả năng đọc stack. Chưa chốt stack ba quân, tăng HP quân cũ, cân bằng cuối, thêm vũ khí hoặc triển khai R2. Các bước ngoài manifest cần duyệt riêng. **NO COMMIT / NO PUSH / NO DEPLOY** tới khi Owner duyệt chính xác manifest R1D trong hội thoại.

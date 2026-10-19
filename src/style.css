@@ -18,6 +18,14 @@ h1 { font-size: clamp(29px, 3.8vw, 43px); line-height: 1.14; letter-spacing: -.0
 .lede { font-size: 14px; color: #a4afa7; margin: 0; line-height: 1.6; }
 .start-button { flex-shrink: 0; background: #dbbc80; color: #182019; border: 1px solid #dbbc80; border-radius: 3px; min-width: 137px; min-height: 46px; padding: 10px 22px; font-size: 14px; font-weight: 700; }
 .start-button:hover { background: #f0cf91; }
+.start-button:disabled { opacity: .5; }
+.armory { border-top: 1px solid #26302e; padding: 20px 0; }
+.armory-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.armory-choices button, .setup-button { min-height: 44px; border: 1px solid #465448; border-radius: 3px; padding: 9px; background: #15211e; color: #bbcbbb; font-size: 12px; }
+.armory-choices button[aria-pressed="true"] { border-color: #c5ad73; color: #f0d89f; background: #293329; }
+.armory-choices button:disabled[aria-pressed="false"], .setup-button:disabled { opacity: .45; }
+#selection-count { color: #a7b6a4; font-size: 12px; min-height: 18px; margin: 12px 0 0; }
+@media (max-width: 700px) { .armory-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .battle-panel { border: 1px solid #31413a; border-radius: 5px; overflow: hidden; background: #0c191e; }
 .battle-topline { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid #263d38; font-size: 10px; color: #a5b8ab; letter-spacing: .12em; }
 .signal { display: inline-block; height: 6px; width: 6px; border-radius: 50%; background: #79c6a4; margin-right: 7px; }

@@ -3,15 +3,15 @@ A 2D lane-based strategy game featuring weapon classes, spell cards, and tactica
 
 LaneForge là game chiến thuật/thủ thành 2D trên một chiến tuyến ngang: chuẩn bị năm slot, chọn thời điểm triệu hồi bằng Vàng + Cooldown, để đơn vị tự tiến và giao chiến.
 
-## Bản thử local R1C — Solo vs Bot
+## Bản thử local R1D — combat và kho quân 5/6
 
-Phaser 3 + TypeScript + Vite, kế thừa R1B đã công bố tại `add1f73`. Hai bên cùng năm loại duy nhất: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Giáo. Mỗi loại một slot, được triệu hồi nhiều bản sao. **Mỗi bên có 100 Vàng ban đầu, +5/giây, trần 125 và năm CD riêng**, cùng giá và cùng kiểm tra triệu hồi. Bỏ tám quân PvE miễn phí.
+Phaser 3 + TypeScript + Vite, kế thừa R1C đã công bố tại `da7d13c46f550b5a66576253f47323260ac8deef`. Chọn **năm loại khác nhau từ kho sáu quân** trước trận: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Giáo / Búa Chiến. Mặc định vẫn năm loại cũ; Bot mang cùng bộ đã chọn. Mỗi bên **100 Vàng ban đầu, +5/giây, trần 125, năm CD riêng và nhà 240 HP**, cùng giá và validator.
 
 Player điều khiển năm nút của mình; năm nút Bot chỉ để quan sát Vàng/CD, loại vừa chọn và lý do ngắn. Bot quyết định mỗi 0.75 giây theo tuyến trước, mục tiêu bền, hỗ trợ và áp lực nhà; có thể dành tiền khi an toàn hoặc chọn quân rẻ cứu nhà. Không tiền/CD vô hạn, không AI framework/backend.
 
-Cận chiến được chồng vị trí và cùng tấn công, quân nhanh vượt đồng đội. Giáo giữ phía sau tuyến cận chiến, được chồng Giáo; thiếu cận chiến vẫn tự tiến/đánh, khi cận chiến mới tới thì nhường bằng chuyển động liên tục. Địch vẫn chặn đường; mục tiêu là địch sống gần nhất phía trước, tie-break ID. Xem [luật và kết quả thử](docs/GAME_DESIGN.md), [chỉ số](docs/UNITS.md).
+Rìu chờ 0.6s sau tiếp cận, giữ tiến độ khi đổi mục tiêu trong tầm, tối thiểu 1.2s giữa các cú đánh thực tế. Giáo tiến 85/s, chủ động kite 48/s khi địch áp sát kể cả đứng riêng, vẫn ưu tiên hỗ trợ sau cận chiến. Búa 72 HP, 26 đòn chính + 10 lên mọi địch khác trong bán kính 40 quanh mục tiêu, windup 0.9s/chu kỳ 1.8s, giá 45/CD 4s. Cận chiến vẫn chồng/cùng đánh; địch chặn đường, mục tiêu gần nhất phía trước, tie-break ID. Xem [luật, đối đầu trước/sau revision và manifest 11 file](docs/GAME_DESIGN.md), [chỉ số](docs/UNITS.md).
 
-**TẠM THỜI / CHƯA CÂN BẰNG:** giữ toàn bộ profile và kinh tế R1B; Owner yêu cầu HP nhà **240/240**, dùng một cấu hình gốc `DEMO.baseHp`; vẫn phá nhà về 0 để kết thúc. Offset Giáo 24, nhịp Bot và ưu tiên giữ nguyên heuristic thử nghiệm. Di chuyển được tính cùng trạng thái; đòn cùng bước nhận đủ sát thương thay vì ID thấp hủy đòn trả. Owner chốt **không có Hòa**: hai phe phải giao chiến, không đi xuyên địch. Trạng thái đảo chiến tuyến hoặc hai nhà cùng bị phá bị báo lỗi bất biến, không chọn phe thắng theo thứ tự xử lý. Hình/nhãn quân chồng nhau có thể che nhau. Chưa có Spell Card, Kim Cương, PvP networking, level, lưu dữ liệu hoặc hệ thống phụ. R1C chỉ local, dừng trước stage/commit/push/deploy.
+**TEMP_R1D / CHƯA CÂN BẰNG:** năm profile cũ không đổi; Búa dùng số revision Owner cho thử. Offset Giáo 30, cận chiến gần trong 96 và ngưỡng kite 52 trong tầm 58 là số triển khai chọn; Giác Đấu bắt kịp nhưng không được hardcode thắng. Không giới hạn stack ba quân, không buff bí mật. Combat cùng bước công bằng và **không Hòa/không xuyên phe** giữ từ R1C. Thời lượng còn chênh lệch và nhạy FPS/input; không gọi là cân bằng cuối. Chưa Spell Card, Kim Cương, PvP, level, tài khoản/lưu dữ liệu. **R1D local, dừng trước stage/commit/push/deploy.**
 
 ## Chạy local
 
@@ -22,7 +22,7 @@ npm install --ignore-scripts
 npm run dev
 ```
 
-Mở `http://127.0.0.1:5173/laneforge-game/`. Bấm **Bắt đầu**, chọn quân ở phần **PLAYER**; quan sát Bot phía trên chiến trường. Thử Rìu → Giáo → Trường Kiếm → Giác Đấu → Khiên rồi tiếp viện theo tình hình. Bấm **Chơi lại** để reset. Để địch tự tiến mà không triệu hồi sẽ dẫn tới thua. Ẩn tab tạm dừng trận local, không mô phỏng bù. UI minh bạch Bot không thay thế xác thực trạng thái/thời gian/lệnh cần có cho PvP tương lai.
+Mở `http://127.0.0.1:5173/laneforge-game/`. Trong kho, bỏ một quân rồi chọn Búa nếu muốn; phải đủ năm mới **Bắt đầu**. Triệu hồi bằng năm nút PLAYER, quan sát Bot phía trên. Đội hình khóa trong trận; **Chơi lại** reset và giữ năm loại, **Về chuẩn bị** reset về chờ để đổi. Thử Khiên → Búa → Giáo → Trường Kiếm → Rìu với deck bỏ Giác Đấu, rồi tiếp viện theo tình hình. Không triệu hồi sẽ thua. Ẩn tab dừng local, không mô phỏng bù. Chưa QA thiết bị thật hoặc xác thực PvP.
 
 ```sh
 npm run build
@@ -53,9 +53,9 @@ Scanner nội bộ kiểm tra allowlist, tracked/staged/untracked candidates, ig
 
 ## GitHub Pages
 
-URL R1B đã công bố và kiểm chứng: **https://vesperkrock.github.io/laneforge-game/** tại `add1f736f9c2953f0a6df3f68aeed937be007aac`. R1C hiện chỉ được phép local; build/browser PASS không có nghĩa Pages đã cập nhật.
+URL R1C đã công bố và kiểm chứng: **https://vesperkrock.github.io/laneforge-game/** tại `da7d13c46f550b5a66576253f47323260ac8deef`. R1D chỉ local; build/browser PASS không có nghĩa Pages đã cập nhật.
 
-Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài lockfile, build, security gate rồi upload **chỉ dist/**. Action được pin SHA, checkout không giữ credentials; Pages source đã là GitHub Actions. Không sửa dependency, workflow hoặc settings trong R1C. Cần Owner duyệt manifest R1C riêng trước stage/commit/push/deploy; sau publish mới kiểm tra lại Actions và site.
+Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài lockfile, build, security gate rồi upload **chỉ dist/**. Action pin SHA, checkout không giữ credentials; Pages source là GitHub Actions. R1D không sửa dependency/workflow/settings. Cần Owner duyệt manifest R1D riêng trước stage/commit/push/deploy; sau publish mới kiểm tra lại Actions/site.
 
 Hướng dẫn nền tảng: [Vite project Pages/base path](https://vite.dev/guide/static-deploy.html#github-pages), [GitHub custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Node LTS](https://nodejs.org/en/about/previous-releases).
 

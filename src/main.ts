@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { Battle, DEMO, TEMP_R1B_SLOTS, TEMP_R1B_UNITS } from './game/Battle';
-import type { Side } from './game/Battle';
+import { Battle, DEMO, UNIT_KINDS, TEMP_R1D_UNITS } from './game/Battle';
+import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
 import './style.css';
 
@@ -12,20 +12,31 @@ function element<T extends HTMLElement>(id: string): T {
 
 const battle = new Battle();
 const start = element<HTMLButtonElement>('start');
+const setup = element<HTMLButtonElement>('setup');
+const selectionCount = element('selection-count');
+let selected: UnitKind[] = [...battle.loadout];
+const armory = UNIT_KINDS.map(kind => {
+  const profile = TEMP_R1D_UNITS[kind];
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.kind = kind;
+  button.textContent = `${profile.mark} · ${profile.name} · ${profile.cost} Vàng`;
+  button.addEventListener('click', () => {
+    if (battle.phase !== 'ready') return;
+    if (selected.includes(kind)) selected = selected.filter(value => value !== kind);
+    else if (selected.length < 5) selected = UNIT_KINDS.filter(value => selected.includes(value) || value === kind);
+    if (selected.length === 5) battle.setLoadout(selected);
+    updateUi();
+  });
+  element('armory-choices').append(button);
+  return { button, kind };
+});
 function prepareSlots(side: Side) {
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`#${side === 'friendly' ? 'player' : 'bot'}-slots .slot`));
-  if (buttons.length !== TEMP_R1B_SLOTS.length) throw new Error('Expected five slots per side');
+  if (buttons.length !== 5) throw new Error('Expected five slots per side');
   return buttons.map((button, index) => {
-    const kind = TEMP_R1B_SLOTS[index];
-    const profile = TEMP_R1B_UNITS[kind];
-    button.dataset.unitType = kind;
-    button.querySelector('.unit-symbol')!.textContent = profile.mark;
-    button.querySelector('strong')!.textContent = profile.name;
-    button.querySelector('.slot-price')!.textContent = `${profile.cost} Vàng · ${profile.cooldown}s CD`;
-    const note = button.querySelector('.slot-note');
-    if (note) note.textContent = `${profile.role} · Tầm ${profile.attackRange}`;
     if (side === 'friendly') button.addEventListener('click', () => { battle.summon('friendly', index); updateUi(); });
-    return { button, profile, label: button.querySelector<HTMLElement>('.slot-cooldown')! };
+    return { button, label: button.querySelector<HTMLElement>('.slot-cooldown')! };
   });
 }
 const slots = { friendly: prepareSlots('friendly'), enemy: prepareSlots('enemy') };
@@ -46,19 +57,36 @@ function updateUi(): void {
   const remaining = { friendly: battle.cooldowns.friendly.map(value => value > 0 ? value.toFixed(1) : '0'), enemy: battle.cooldowns.enemy.map(value => value > 0 ? value.toFixed(1) : '0') };
   const ready = { friendly: slots.friendly.map((_slot, index) => battle.canSummon('friendly', index)), enemy: slots.enemy.map((_slot, index) => battle.canSummon('enemy', index)) };
   const highlighted = battle.botChoice && battle.elapsed - battle.botChoice.at < 1 ? battle.botChoice.slot : -1;
-  const ui = [battle.phase, Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
+  const ui = [battle.phase, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
   if (ui === previousUi) return;
   previousUi = ui;
   gold.textContent = String(Math.floor(battle.gold.friendly));
   botGold.textContent = String(Math.floor(battle.gold.enemy));
-  botChoice.textContent = battle.botChoice ? `Bot: ${TEMP_R1B_UNITS[TEMP_R1B_SLOTS[battle.botChoice.slot]].name} · ${battle.botChoice.reason}` : 'Bot chưa triệu hồi.';
+  botChoice.textContent = battle.botChoice ? `Bot: ${TEMP_R1D_UNITS[battle.loadout[battle.botChoice.slot]].name} · ${battle.botChoice.reason}` : 'Bot chưa triệu hồi.';
   allies.textContent = String(friendlyCount);
   hits.textContent = String(battle.hits);
   playerHp.textContent = `${battle.playerHp} / ${DEMO.baseHp}`;
   enemyHp.textContent = `${battle.enemyHp} / ${DEMO.baseHp}`;
   event.textContent = battle.event;
   start.textContent = battle.phase === 'ready' ? 'Bắt đầu' : 'Chơi lại';
-  for (const side of ['friendly', 'enemy'] as const) slots[side].forEach(({ button, profile, label }, index) => {
+  start.disabled = battle.phase === 'ready' && selected.length !== 5;
+  setup.disabled = battle.phase === 'ready';
+  selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm loại.';
+  for (const { button, kind } of armory) {
+    button.setAttribute('aria-pressed', String(selected.includes(kind)));
+    button.disabled = battle.phase !== 'ready' || (!selected.includes(kind) && selected.length === 5);
+  }
+  for (const side of ['friendly', 'enemy'] as const) slots[side].forEach(({ button, label }, index) => {
+    const kind = battle.loadout[index];
+    const profile = TEMP_R1D_UNITS[kind];
+    if (button.dataset.unitType !== kind) {
+      button.dataset.unitType = kind;
+      button.querySelector('.unit-symbol')!.textContent = profile.mark;
+      button.querySelector('strong')!.textContent = profile.name;
+      button.querySelector('.slot-price')!.textContent = `${profile.cost} Vàng · ${profile.cooldown}s CD`;
+      const note = button.querySelector('.slot-note');
+      if (note) note.textContent = `${profile.role} · Tầm ${profile.attackRange}`;
+    }
     const state = battle.phase !== 'running' ? 'inactive' : battle.cooldowns[side][index] > 0 ? 'cooling' : battle.gold[side] < profile.cost ? 'insufficient' : ready[side][index] ? 'ready' : 'blocked';
     button.dataset.state = state;
     button.disabled = side === 'enemy' || !ready[side][index];
@@ -73,7 +101,11 @@ function updateUi(): void {
   status.dataset.phase = battle.phase;
 }
 
-start.addEventListener('click', () => { battle.start(); updateUi(); });
+start.addEventListener('click', () => {
+  if (battle.phase === 'ready' && selected.length !== 5) return;
+  battle.start(); updateUi();
+});
+setup.addEventListener('click', () => { battle.prepare(); selected = [...battle.loadout]; updateUi(); });
 updateUi();
 
 const game = new Phaser.Game({

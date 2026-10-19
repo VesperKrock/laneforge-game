@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { Battle, DEMO, TEMP_R1B_UNITS } from './Battle';
+import { Battle, DEMO, TEMP_R1D_UNITS } from './Battle';
 
-const LABEL_Y = { sword: 204, axe: 190, shield: 176, gladiator: 162, spear: 148 } as const;
-const DRAW_Y = { sword: 0, axe: -6, shield: 6, gladiator: -12, spear: -18 } as const;
+const LABEL_Y = { sword: 204, axe: 190, shield: 176, gladiator: 162, spear: 148, hammer: 134 } as const;
+const DRAW_Y = { sword: 0, axe: -6, shield: 6, gladiator: -12, spear: -18, hammer: 12 } as const;
 
 export class BattleScene extends Phaser.Scene {
   private readonly battle: Battle;
@@ -65,6 +65,7 @@ export class BattleScene extends Phaser.Scene {
         case 'shield': g.fillCircle(unit.x, 259 + bob, 12); break;
         case 'gladiator': g.fillTriangle(unit.x, 244 + bob, unit.x - 10, 275 + offset, unit.x + 10, 275 + offset); break;
         case 'spear': g.fillRoundedRect(unit.x - 7, 246 + bob, 14, 30, 2); break;
+        case 'hammer': g.fillRoundedRect(unit.x - 11, 246 + bob, 22, 30, 2); break;
       }
       g.fillStyle(0xe9f3dd).fillCircle(unit.x, 239 + bob, 7);
       g.lineStyle(unit.flash > 0 ? 4 : 2, 0xf8dfaa);
@@ -74,16 +75,20 @@ export class BattleScene extends Phaser.Scene {
         g.fillStyle(0xf8dfaa).fillTriangle(tipX, 245 + bob, tipX - direction * 8, 241 + bob, tipX - direction * 8, 249 + bob);
       } else g.lineBetween(unit.x + direction * 8, 257 + bob, unit.x + direction * (unit.flash > 0 ? 31 : 19), 233 + bob);
       if (unit.kind === 'axe') g.fillStyle(color).fillRect(unit.x + direction * 19 - 6, 232 + bob, 12, 9);
+      if (unit.kind === 'hammer') {
+        g.fillStyle(0xd6c9a8).fillRect(unit.x + direction * 19 - 9, 228 + bob, 18, 12);
+        if (unit.flash > 0) g.lineStyle(2, color, 0.6).strokeCircle(unit.x + direction * unit.attackRange, 261 + offset, 14);
+      }
       if (unit.kind === 'shield') g.fillStyle(0xc1cbb2).fillRoundedRect(unit.x + direction * 13 - 5, 248 + bob, 10, 23, 3);
       if (unit.kind === 'gladiator') g.lineBetween(unit.x - direction * 8, 257 + bob, unit.x - direction * 19, 237 + bob);
       g.fillStyle(0x071115).fillRect(unit.x - 10, 218 + offset, 20, 4);
       g.fillStyle(color).fillRect(unit.x - 10, 218 + offset, 20 * unit.hp / unit.maxHp, 4);
       let label = this.unitLabels.get(unit.id);
       if (!label) {
-        label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1B_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);
+        label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1D_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);
         this.unitLabels.set(unit.id, label);
       }
-      label.setText(TEMP_R1B_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
+      label.setText(TEMP_R1D_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
     }
     const labels = { ready: 'CHỜ LỆNH TRIỆU HỒI', running: '', won: 'THẮNG — GIỮ VỮNG CHIẾN TUYẾN', lost: 'THUA — THỬ MỘT NHỊP TRIỆU HỒI KHÁC' };
     this.message.setText(labels[this.battle.phase]);

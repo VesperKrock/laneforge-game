@@ -13,12 +13,18 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R1C <span aria-hidden="true">/</span> SOLO VS BOT</span>
+        <span class="build-tag">R1D <span aria-hidden="true">/</span> SOLO VS BOT</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
         <div><p class="eyebrow">CHIẾN THUẬT MỘT CHIẾN TUYẾN</p><h1 id="title">Giữ tuyến. Tiến lên.</h1><p class="lede">Triệu hồi đúng lúc. Đơn vị tự tiến và chiến đấu để phá căn cứ đối phương.</p></div>
         <button id="start" class="start-button" type="button">Bắt đầu</button>
+      </section>
+
+      <section class="armory" aria-labelledby="armory-title">
+        <div class="deployment-heading"><div><p class="eyebrow">CHỌN QUÂN TRƯỚC TRẬN</p><h2 id="armory-title">Mang năm loại từ kho sáu quân</h2></div><button id="setup" class="setup-button" type="button" disabled>Về chuẩn bị</button></div>
+        <div id="armory-choices" class="armory-choices" role="group" aria-label="Chọn năm loại quân khác nhau"></div>
+        <p id="selection-count" role="status">Đã chọn 5/5</p>
       </section>
 
       <section class="deployment bot-deployment" aria-labelledby="bot-title">
@@ -51,7 +57,7 @@
         </div>
       </section>
 
-      <footer><p><span class="temporary-label">TẠM THỜI / CHƯA CÂN BẰNG</span> Mỗi bên có Vàng riêng, năm slot không trùng loại và CD từng slot. Cận chiến được chồng vị trí; Giáo hỗ trợ phía sau, vẫn tự chiến đấu khi thiếu cận chiến. Ẩn tab tạm dừng trận local. TK = Trường Kiếm · RI = Rìu · KH = Khiên · GD = Kiếm Giác Đấu · GI = Giáo. Chưa có Spell Card hay PvP.</p><span class="footer-wordmark" aria-hidden="true">FORGE YOUR LINE.</span></footer>
+      <footer><p><span class="temporary-label">TẠM THỜI / CHƯA CÂN BẰNG</span> Hai bên dùng cùng năm loại đã chọn, có Vàng riêng và CD từng slot. Cận chiến được chồng vị trí; Giáo vừa lùi vừa đánh khi địch áp sát, ưu tiên hỗ trợ sau cận chiến. Búa Chiến đánh 26 sát thương chính và lan 10 lên mọi địch khác trong bán kính 40 quanh mục tiêu. Ẩn tab tạm dừng trận local. TK = Trường Kiếm · RI = Rìu · KH = Khiên · GD = Kiếm Giác Đấu · GI = Giáo · BC = Búa Chiến. Chưa có Spell Card hay PvP.</p><span class="footer-wordmark" aria-hidden="true">FORGE YOUR LINE.</span></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
