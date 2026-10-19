@@ -3,13 +3,13 @@ A 2D lane-based strategy game featuring weapon classes, spell cards, and tactica
 
 LaneForge là game chiến thuật/thủ thành 2D trên một chiến tuyến ngang: chuẩn bị năm slot, chọn thời điểm triệu hồi bằng Vàng + Cooldown, để đơn vị tự tiến và giao chiến.
 
-## Bản thử local R1A
+## Bản thử local R1B
 
-Phaser 3 + TypeScript + Vite. Kế thừa R0B `19aa892`, R1A bật năm slot cố định: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Trường Kiếm. Tất cả dùng chung Vàng nhưng có CD riêng, kể cả hai slot Trường Kiếm. Giá/CD và trạng thái sẵn sàng, hồi chiêu hoặc thiếu Vàng hiện trên từng nút.
+Phaser 3 + TypeScript + Vite. Kế thừa R1A `1086c8a`, R1B dùng năm slot cố định: Trường Kiếm / Rìu / Khiên / Kiếm Giác Đấu / Giáo. **Mỗi loại có tối đa một slot**, nhưng có thể triệu hồi nhiều bản sao từ slot đó. Vàng chung, CD riêng. Nút hiển thị giá/CD/tầm và trạng thái sẵn sàng, hồi chiêu, thiếu Vàng hoặc chờ lối ra trống; lệnh bị từ chối không mất Vàng/CD.
 
-Bốn quân có HP, sát thương, nhịp đánh và tốc chạy khác nhau; có hình/ký hiệu riêng. Quân tự tiến, đánh địch gần nhất ở phía trước rồi đánh căn cứ đúng tầm. PvE tạm có ba địch kịch bản tại 0/6/10 giây. Giữ nút bắt đầu/chơi lại, thanh HP, bộ đếm đòn trúng và kết quả thắng/thua. Xem [bảng chỉ số TEMP_R1A](docs/UNITS.md).
+Giáo có tầm 58, các quân còn lại tầm 28; Giáo sau Khiên có thể hỗ trợ đầu tuyến. Quân tự tiến, giữ khoảng tâm 24 và không vượt đồng đội, đánh địch sống gần nhất phía trước (cùng khoảng cách chọn ID thấp hơn), rồi mới đánh nhà đúng tầm. PvE có tám quân theo sáu mốc từ 0 đến 18 giây, gồm cặp Khiên/Giáo và tiếp viện Rìu. Đợt đến hạn chờ cửa spawn trống, không lặp vô hạn. Xem [chỉ số TEMP_R1B](docs/UNITS.md) và [lịch PvE/kết quả thử](docs/GAME_DESIGN.md).
 
-**TẠM THỜI / CHƯA CÂN BẰNG:** toàn bộ chỉ số/hình học phục vụ core combat test. Khiên chịu đòn bằng HP, không giáp/taunt; quân cùng phe có thể chồng hình. Chưa có chuẩn bị đội hình, gameplay hoàn chỉnh, Spell Card, tiến hóa, campaign, lưu game hay PvP. Không có backend, tài khoản, analytics hoặc dịch vụ ngoài. Chưa stage/commit/push/deploy R1A trong vòng triển khai local.
+**TẠM THỜI / CHƯA CÂN BẰNG:** bốn quân cũ giữ chỉ số R1A; thêm Giáo, hồi Vàng 6 → 5/giây (đầu trận 100, trần 125). Khiên chịu đòn bằng HP, không giáp/taunt. Vũ khí vẽ có thể giao nhau; spacing không phải physics theo pixel. Tiếp viện Trường Kiếm liên tục vẫn thắng được, chưa cân bằng chiến dịch. Chưa có editor, Spell Card, Kim Cương, campaign, lưu game hay PvP; không thêm dependency, backend, tài khoản hoặc analytics. Chỉ làm local, chưa stage/commit/push/deploy R1B.
 
 ## Chạy local
 
@@ -51,11 +51,11 @@ Scanner nội bộ kiểm tra allowlist, tracked/staged/untracked candidates, ig
 
 ## GitHub Pages
 
-URL R0B đã công bố: **https://vesperkrock.github.io/laneforge-game/**. Code R1A hiện chỉ được phép kiểm tra local; không coi site đang phục vụ R1A trước khi được duyệt, push và xác minh deploy.
+URL R1A đã công bố: **https://vesperkrock.github.io/laneforge-game/**. Code R1B hiện chỉ được phép kiểm tra local; không coi site đang phục vụ R1B trước khi được duyệt, push và xác minh deploy.
 
 Workflow `.github/workflows/deploy-pages.yml` chạy khi push `main` hoặc chạy thủ công, cài từ lockfile, build, kiểm tra security rồi upload **chỉ `dist/`**. Các action chính thức được pin bằng commit SHA; checkout không giữ credentials.
 
-Nguồn Pages đã được cấu hình **GitHub Actions** ở R0B. Không sửa workflow/settings trong R1A. Commit/push R1A chỉ được thực hiện sau khi Owner duyệt đúng phạm vi trong hội thoại. Sau push phải kiểm tra Actions thành công và mở URL để xác nhận thao tác triệu hồi, CD, thắng/thua, resize và tải assets; không suy ra Pages live từ build local.
+Nguồn Pages đã được cấu hình **GitHub Actions** ở R0B. Không sửa workflow/settings trong R1B. Commit/push R1B chỉ được thực hiện sau khi Owner duyệt đúng phạm vi trong hội thoại. Sau push phải kiểm tra Actions thành công và mở URL để xác nhận thao tác triệu hồi, CD, thắng/thua, resize và tải assets; không suy ra Pages live từ build local.
 
 Hướng dẫn nền tảng: [Vite project Pages/base path](https://vite.dev/guide/static-deploy.html#github-pages), [GitHub custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages), [Node LTS](https://nodejs.org/en/about/previous-releases).
 
