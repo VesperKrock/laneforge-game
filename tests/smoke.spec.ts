@@ -883,6 +883,283 @@ test('model: simultaneous lethal Warhammer swings keep both uncapped AOE snapsho
   }
 });
 
+// R1E observes existing timers/HP without adding instrumentation or test modes to the game.
+const AUDIT_FRAMES = [
+  { name: '100 FPS', steps: [0.01] },
+  { name: '60 FPS', steps: [1 / 60] },
+  { name: '30 FPS', steps: [1 / 30] },
+  { name: '20 FPS', steps: [0.05] },
+  { name: 'uneven', steps: [0.013, 0.027, 0.041] },
+  { name: 'dt 0.2 capped', steps: [0.2] },
+] as const;
+
+function timingStep(battle: Battle, seconds: number) {
+  const refs = [...battle.units];
+  const units = refs.map(u => ({ ...u }));
+  const bases = [battle.playerHp, battle.enemyHp];
+  battle.step(seconds);
+  // Keep references after dead units leave the array, including simultaneous lethal replies.
+  const attacks = refs.filter((u, i) => units[i].hp > 0 && u.flash === 0.15).map(u => u.id);
+  return { at: +battle.elapsed.toFixed(9), requestedDt: seconds, simulatedDt: Math.min(seconds, 0.05),
+    attacks, before: units.map(u => ({ id: u.id, side: u.side, hp: u.hp, x: u.x, attackIn: u.attackIn })),
+    after: refs.map(u => ({ id:u.id, side:u.side, hp:u.hp, x:u.x, attackIn:u.attackIn })),
+    basesBefore: bases, basesAfter: [battle.playerHp, battle.enemyHp] };
+}
+
+async function attachTiming(name: string, rows: unknown): Promise<void> {
+  await test.info().attach(name, { body: Buffer.from(JSON.stringify(rows, null, 2)), contentType: 'application/json' });
+}
+
+for (const frames of AUDIT_FRAMES) test(`R1E: equal full-HP Gladiators stay symmetric with ${frames.name}, mirrored sides and swapped IDs/arrays`, async () => {
+  const rows = [];
+  for (const gap of [28, 140]) {
+    let reference: unknown;
+    for (const mirror of [false, true]) for (const swapIds of [false, true]) for (const reverse of [false, true]) {
+      const a = unit('gladiator', mirror ? 'enemy' : 'friendly', swapIds ? 200 : 100, mirror ? 480 + gap / 2 : 480 - gap / 2);
+      const b = unit('gladiator', mirror ? 'friendly' : 'enemy', swapIds ? 100 : 200, 960 - a.x);
+      const battle = arena(...(reverse ? [b, a] : [a, b]));
+      battle.cooldowns.friendly.fill(9999);
+      const trace = [];
+      for (let frame = 0; a.hp > 0 && b.hp > 0 && frame < 1000; frame++) {
+        const hp = [a.hp, b.hp];
+        const event = timingStep(battle, frames.steps[frame % frames.steps.length]);
+        expect(a.hp).toBe(b.hp);
+        expect(a.x + b.x).toBeCloseTo(960, 8);
+        expect(a.attackIn).toBeCloseTo(b.attackIn, 8);
+        if (a.hp !== hp[0] || b.hp !== hp[1]) trace.push({ at: event.at, before: hp, after: [a.hp, b.hp] });
+      }
+      expect(trace).toHaveLength(6);
+      expect(trace.map(e => e.after)).toEqual([[31,31],[24,24],[17,17],[10,10],[3,3],[0,0]]);
+      expect(battle.units).toEqual([]);
+      expect(battle.phase).toBe('running'); // Mutual troop deaths are not a drawn match.
+      expect([battle.playerHp, battle.enemyHp]).toEqual([240,240]);
+      if (reference) expect(trace).toEqual(reference); else reference = trace;
+      rows.push({ gap, mirror, swapIds, reverse, trace });
+    }
+    // The second gap has a different approach time, so compare permutations within each gap only.
+  }
+  console.log(JSON.stringify({ audit: 'R1E symmetric duel', frames: frames.name, examples: rows.filter(r => !r.mirror && !r.swapIds && !r.reverse) }));
+  await attachTiming('symmetric-duels.json', rows);
+});
+
+test('R1E: immediate first hit and fractional carry have bounded frame error, no stored attack burst', async () => {
+  const rows = [];
+  for (const frames of AUDIT_FRAMES) for (const side of ['friendly','enemy'] as const) {
+    const d = side === 'friendly' ? 1 : -1;
+    const fighter = unit('gladiator', side, 100, 480);
+    const target = unit('shield', side === 'friendly' ? 'enemy' : 'friendly', 200, 480 + d * 28);
+    // A stationary passive high-HP dummy isolates cadence, not a balance matchup.
+    fighter.speed = target.speed = 0; target.attackIn = 999; target.hp = target.maxHp = 10000;
+    const battle = arena(fighter, target), trace = [];
+    const maxDt = Math.min(Math.max(...frames.steps), 0.05);
+    for (let frame = 0; battle.elapsed < 3.2 - 1e-9; frame++) {
+      const before = target.hp;
+      const event = timingStep(battle, Math.min(frames.steps[frame % frames.steps.length], 3.2 - battle.elapsed));
+      if (target.hp < before) {
+        expect(before - target.hp).toBe(7); // At most one attack per step, even at large requested dt.
+        trace.push(event);
+      }
+    }
+    expect(trace).toHaveLength(10);
+    expect(trace[0].at).toBeCloseTo(Math.min(frames.steps[0], 0.05), 8);
+    for (let i = 1; i < trace.length; i++) {
+      const gap = trace[i].at - trace[i-1].at;
+      expect(gap).toBeGreaterThanOrEqual(0.35 - maxDt - 1e-7);
+      expect(gap).toBeLessThanOrEqual(0.35 + maxDt + 1e-7);
+      // Subsequent due times follow the interval grid; frame rounding does not accumulate.
+      expect(trace[i].at).toBeGreaterThanOrEqual(i * 0.35 - 1e-7);
+      expect(trace[i].at).toBeLessThanOrEqual(i * 0.35 + maxDt + 1e-7);
+    }
+    rows.push({ frames: frames.name, side, trace });
+  }
+  await attachTiming('cadence.json', rows);
+});
+
+test('R1E: Gladiator target handoff preserves partial repeat CD and never grants a free strike', async () => {
+  const rows = [];
+  for (const side of ['friendly','enemy'] as const) for (const switchAt of [0.10, 0.34, 0.35]) {
+    const d = side === 'friendly' ? 1 : -1, other = side === 'friendly' ? 'enemy' : 'friendly';
+    const fighter = unit('gladiator', side, 100, 480);
+    const old = unit('shield', other, 200, 480 + d * 28), next = unit('shield', other, 201, old.x);
+    for (const u of [fighter, old, next]) { u.speed = 0; if (u !== fighter) u.attackIn = 999; }
+    const battle = arena(next, fighter, old);
+    advance(battle, switchAt);
+    const remaining = fighter.attackIn;
+    old.hp = 0;
+    const trace = [];
+    while (battle.elapsed < 0.71 - 1e-9) {
+      const hp = next.hp, event = timingStep(battle, 0.01);
+      if (next.hp < hp) trace.push(event);
+    }
+    expect(trace.map(e => e.at)).toEqual(switchAt === 0.35 ? [0.7] : [0.35,0.7]);
+    expect(next.hp).toBe(switchAt === 0.35 ? 143 : 136);
+    rows.push({ side, switchAt, remaining, trace });
+  }
+  await attachTiming('target-handoff.json', rows);
+});
+
+test('R1E: leaving range preserves unexpired CD; long travel clamps readiness instead of banking hits', async () => {
+  const rows = [];
+  for (const side of ['friendly','enemy'] as const) for (const outsideSeconds of [0.01, 2]) {
+    const d = side === 'friendly' ? 1 : -1;
+    const fighter = unit('gladiator', side, 100, 480), target = unit('shield', side === 'friendly' ? 'enemy' : 'friendly', 200, 480 + d * 28);
+    fighter.speed = target.speed = 0; target.attackIn = 999;
+    const battle = arena(fighter, target), trace = [timingStep(battle, 0.01)];
+    expect(target.hp).toBe(143);
+    target.x = 480 + d * 80;
+    advance(battle, outsideSeconds);
+    expect(fighter.engaged).toBe(false);
+    expect(fighter.attackIn).toBeGreaterThanOrEqual(0);
+    if (outsideSeconds === 2) expect(fighter.attackIn).toBe(0);
+    target.x = 480 + d * 28;
+    const reentryAt = battle.elapsed + 0.01;
+    while (trace.length < 3) {
+      const hp = target.hp, event = timingStep(battle, 0.01);
+      if (target.hp < hp) trace.push(event);
+    }
+    expect(trace[1].at).toBeCloseTo(outsideSeconds === 2 ? reentryAt : 0.35, 8);
+    expect(trace[2].at - trace[1].at).toBeCloseTo(outsideSeconds === 2 ? 0.34 : 0.35, 8);
+    rows.push({ side, outsideSeconds, reentryAt, trace });
+  }
+  await attachTiming('range-reentry.json', rows);
+});
+
+test('R1E: a veteran who just killed a unit has no free hit against a paid full-HP newborn', async () => {
+  const rows = [];
+  for (const side of ['friendly','enemy'] as const) {
+    const d = side === 'friendly' ? 1 : -1, other = side === 'friendly' ? 'enemy' : 'friendly';
+    const gate = other === 'enemy' ? 836 : 124;
+    const veteran = unit('gladiator', side, 100, gate - d * 28);
+    const prior = unit('gladiator', other, 200, gate);
+    // Controlled boundary: previous opponent is wounded and its reply is not ready yet.
+    prior.hp = 7; prior.attackIn = 0.2;
+    const battle = arena(prior, veteran);
+    battle.cooldowns.friendly.fill(9999);
+    const trace = [timingStep(battle, 0.01)];
+    expect([prior.hp, veteran.hp]).toEqual([0,38]);
+    expect(veteran.attackIn).toBeCloseTo(0.34, 8);
+    battle.cooldowns[other][3] = 0;
+    expect(battle.summon(other, 3)).toBe(true);
+    const newborn = battle.units.find(u => u !== veteran)!;
+    expect(newborn).toMatchObject({ hp:38, attackIn:0, engaged:false, flash:0, x:gate });
+    expect(battle.gold[other]).toBeCloseTo(80.05, 8);
+    expect(battle.cooldowns[other][3]).toBe(1.5);
+    battle.cooldowns.enemy.fill(9999); // No further Bot reinforcements in this isolated duel.
+    while (veteran.hp > 0 && newborn.hp > 0 && battle.elapsed < 3) {
+      const hp = [veteran.hp, newborn.hp], event = timingStep(battle, 0.01);
+      if (veteran.hp !== hp[0] || newborn.hp !== hp[1]) trace.push(event);
+    }
+    expect([veteran.hp, newborn.hp]).toEqual([0,3]);
+    rows.push({ veteranSide:side, trace });
+  }
+  await attachTiming('veteran-kill-then-newborn.json', rows);
+});
+
+test('R1E: paid newborns at the gate have no side/ID/order bias across approach distances and frame sizes', async () => {
+  const rows = [];
+  for (const frames of AUDIT_FRAMES) for (const distance of [14,28,28.01,40,140]) {
+    let reference: unknown;
+    for (const side of ['friendly','enemy'] as const) for (const swapIds of [false,true]) for (const reverse of [false,true]) {
+      const other = side === 'friendly' ? 'enemy' : 'friendly', d = side === 'friendly' ? 1 : -1;
+      const gate = other === 'enemy' ? 836 : 124;
+      const veteran = unit('gladiator', side, swapIds ? 200 : 100, gate - d * distance);
+      const battle = arena(veteran);
+      battle.cooldowns.friendly.fill(9999); battle.cooldowns[other][3] = 0;
+      expect(battle.summon(other,3)).toBe(true);
+      const newborn = battle.units.find(u => u !== veteran)!;
+      newborn.id = swapIds ? 100 : 200;
+      battle.cooldowns.enemy.fill(9999);
+      if (reverse) battle.units.reverse();
+      const trace = [];
+      for (let frame = 0; veteran.hp > 0 && newborn.hp > 0 && frame < 1000; frame++) {
+        const hp = [veteran.hp,newborn.hp];
+        timingStep(battle, frames.steps[frame % frames.steps.length]);
+        if (veteran.hp !== hp[0] || newborn.hp !== hp[1]) trace.push({ at:+battle.elapsed.toFixed(9), before:hp, after:[veteran.hp,newborn.hp] });
+      }
+      expect([veteran.hp,newborn.hp]).toEqual([0,0]);
+      expect([battle.playerHp,battle.enemyHp]).toEqual([240,240]);
+      expect(trace).toHaveLength(6);
+      if (reference) expect(trace).toEqual(reference); else reference = trace;
+      rows.push({ frames:frames.name, distance, veteranSide:side, swapIds, reverse, trace });
+    }
+  }
+  await attachTiming('gate-spawns.json', rows);
+});
+
+test('R1E: a real paid base attacker does not beat an equal newborn through saved cooldown or veteran status', async () => {
+  const rows = [];
+  for (const side of ['friendly','enemy'] as const) for (const delay of [0,0.10,0.34]) {
+    const other = side === 'friendly' ? 'enemy' : 'friendly';
+    const battle = new Battle(); battle.start(); battle.cooldowns[other].fill(9999);
+    expect(battle.summon(side,3)).toBe(true);
+    battle.cooldowns.enemy.fill(9999);
+    const veteran = battle.units[0];
+    while (battle.playerHp === 240 && battle.enemyHp === 240) battle.step(0.01);
+    advance(battle,delay);
+    const spawnAt = battle.elapsed;
+    battle.cooldowns[other][3] = 0;
+    expect(battle.summon(other,3)).toBe(true);
+    const newborn = battle.units.find(u => u !== veteran)!;
+    battle.cooldowns.enemy.fill(9999);
+    const before = { veteranHp:veteran.hp, newbornHp:newborn.hp, veteranAttackIn:veteran.attackIn, newbornAttackIn:newborn.attackIn };
+    const trace = [];
+    while (veteran.hp > 0 && newborn.hp > 0 && battle.elapsed < spawnAt + 3) {
+      const hp = [veteran.hp,newborn.hp], event = timingStep(battle,0.01);
+      if (veteran.hp !== hp[0] || newborn.hp !== hp[1]) trace.push(event);
+    }
+    expect(veteran.hp).toBe(0); expect(newborn.hp).toBeGreaterThanOrEqual(0);
+    rows.push({ veteranSide:side, delay, spawnAt, before, trace, result:[veteran.hp,newborn.hp] });
+  }
+  await attachTiming('paid-base-attacker-newborn.json', rows);
+});
+
+test('R1E: a heuristic Bot Gladiator spawns inert at frame end, matching reflected Player input', async () => {
+  const automatic = new Battle(); automatic.start();
+  const a = unit('gladiator','friendly',100,750);
+  automatic.units = [a]; automatic.gold.enemy = 20;
+  automatic.cooldowns.enemy.fill(9999); automatic.cooldowns.enemy[3] = 0;
+  const manual = arena(unit('gladiator','enemy',100,210));
+  const b = manual.units[0]; manual.gold.friendly = 20;
+  advance(automatic,0.75); advance(manual,0.75);
+  expect(automatic.botChoice).toMatchObject({ slot:3, at:automatic.elapsed });
+  expect(manual.summon('friendly',3)).toBe(true);
+  const bot = automatic.units.find(u=>u!==a)!, player = manual.units.find(u=>u!==b)!;
+  expect(bot).toMatchObject({ kind:'gladiator', hp:38, x:836, attackIn:0, flash:0, engaged:false });
+  expect(player).toMatchObject({ kind:'gladiator', hp:38, x:124, attackIn:0, flash:0, engaged:false });
+  expect(automatic.gold.enemy).toBeCloseTo(manual.gold.friendly,8);
+  expect(automatic.cooldowns.enemy[3]).toBeCloseTo(manual.cooldowns.friendly[3],8);
+  const trace = [];
+  while(a.hp>0 && bot.hp>0 && automatic.elapsed<3) {
+    const hp = [a.hp,bot.hp], event = timingStep(automatic,0.01);
+    manual.step(0.01);
+    expect([a.hp,bot.hp]).toEqual([b.hp,player.hp]);
+    expect(a.attackIn).toBeCloseTo(b.attackIn,8);
+    expect(bot.attackIn).toBeCloseTo(player.attackIn,8);
+    expect(a.x+b.x).toBeCloseTo(960,8); expect(bot.x+player.x).toBeCloseTo(960,8);
+    if(a.hp!==hp[0] || bot.hp!==hp[1]) trace.push(event);
+  }
+  expect(trace[0].at).toBe(0.76);
+  expect([a.hp,bot.hp,b.hp,player.hp]).toEqual([0,3,0,3]);
+  await attachTiming('bot-end-of-frame-spawn.json', trace);
+});
+
+test('R1E: current melee stack makes two Gladiators deal 14 per volley, not one unit attacking twice', async () => {
+  const rows = [];
+  for (const side of ['friendly','enemy'] as const) {
+    const d = side === 'friendly' ? 1 : -1, other = side === 'friendly' ? 'enemy' : 'friendly';
+    const a = unit('gladiator',side,100,480), b = unit('gladiator',side,101,480), newborn = unit('gladiator',other,200,480+d*28);
+    const battle = arena(b,newborn,a), trace = [];
+    while (newborn.hp > 0 && battle.elapsed < 3) {
+      const hp = newborn.hp, event = timingStep(battle,0.01);
+      if (newborn.hp < hp) trace.push(event);
+    }
+    expect(trace.map(e=>e.at)).toEqual([0.01,0.35,0.7]);
+    expect([a.hp,b.hp,newborn.hp]).toEqual([17,38,0]);
+    rows.push({ side, trace });
+  }
+  await attachTiming('stacked-gladiators.json', rows);
+});
+
 function observe(page: Page): string[] {
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
@@ -950,21 +1227,26 @@ test('production UI: two real economies, five player slots, five read-only bot s
 
 test('production subpath: selected Warhammer formation fights a continuing bot, wins and preserves deck on restart',async({page})=>{
   test.setTimeout(120000);
-  const errors=observe(page);await page.goto('./');
+  const errors=observe(page);
+  // Drive real RAF/timers and inputs together; browser load must not change the tested strategy.
+  await page.clock.install({time:new Date('2026-01-01T00:00:00Z')});
+  await page.goto('./');
   await expect(page.locator('#battlefield canvas')).toBeVisible();
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
+  await page.clock.runFor(1000); // Settle Phaser's frame smoothing while the battle is still ready.
   await page.locator('#armory-choices [data-kind="gladiator"]').click();
   await page.locator('#armory-choices [data-kind="hammer"]').click();
   await page.locator('#start').click();
   const order=[2,3,4,0,1];let cursor=0,captured=false;
-  const started=Date.now();
-  while(await page.locator('#battle-status').getAttribute('data-phase')==='running'&&Date.now()-started<105000){
+  let simulatedMs=0;
+  while(await page.locator('#battle-status').getAttribute('data-phase')==='running'&&simulatedMs<105000){
     const clicked=await page.locator('#player-slots .slot').nth(order[cursor%order.length])
       .evaluate(button=>{const b=button as HTMLButtonElement;if(b.disabled)return false;b.click();return true;});
     if(clicked)cursor++;
-    if(!captured&&Date.now()-started>8000){
+    if(!captured&&simulatedMs>=8000){
       await page.screenshot({path:'test-results/r1d-formation.png',fullPage:true});captured=true;
     }
-    await page.waitForTimeout(100);
+    await page.clock.runFor(100);simulatedMs+=100;
   }
   await expect(page.locator('#battle-status')).toHaveAttribute('data-phase','won');
   await expect(page.locator('#enemy-hp')).toHaveText('0 / 240');

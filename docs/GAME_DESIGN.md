@@ -1,6 +1,6 @@
 # LaneForge — Game design baseline
 
-Nguồn: yêu cầu Owner R0A–R1D. Đây là prototype, chưa phải specification/cân bằng game hoàn chỉnh.
+Nguồn: yêu cầu Owner R0A–R1E. Đây là prototype, chưa phải specification/cân bằng game hoàn chỉnh. Kết quả Combat Timing Audit R1E nằm ở cuối tài liệu; gameplay vẫn là bản R1D đã phát hành.
 
 ## CONFIRMED BY OWNER
 
@@ -18,7 +18,7 @@ Nguồn: yêu cầu Owner R0A–R1D. Đây là prototype, chưa phải specifica
 
 R0B `19aa892`, R1A `1086c8a`, R1B `add1f73` là lịch sử. R1C đã commit/push/deploy riêng tại **`da7d13c46f550b5a66576253f47323260ac8deef`**, đã xác minh Actions/Pages. Fresh-check trước R1D: HEAD = origin/main = SHA này, branch main, worktree/index sạch, baseline build + 30 tests + security gate + audit PASS.
 
-R1D chỉ làm local; site public vẫn R1C. Không gộp quyền xuất bản hai vòng. **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY** trước Owner duyệt manifest R1D riêng.
+R1D revision đã được Owner duyệt và phát hành riêng tại **`b4ec9fc1d05dee40244e38e281c20de04776e7bb`**. Những mục R1D bên dưới lưu hồ sơ lúc trình duyệt local, không phải trạng thái phát hành hiện tại. R1E bắt đầu từ đúng commit này; chỉ audit local, **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY**.
 
 Revision tiếp tục đúng worktree R1D đã trình, không reset/làm lại. Preflight đối chiếu hash 11 file với snapshot lần trình trước: khớp toàn bộ, index trống, HEAD/origin/main vẫn R1C. Prompt revision nằm ngoài public repository; không stage.
 
@@ -157,3 +157,97 @@ tests/smoke.spec.ts
 ## OPEN / PROPOSED
 
 Owner đánh giá ngưỡng kite 52, offset Giáo 30/phạm vi 96, kết quả Giáo–Giác Đấu tùy khoảng xuất phát, Búa AOE không cap và nhịp B/FPS/khả năng đọc stack. Chưa chốt stack ba quân, tăng HP quân cũ, cân bằng cuối, thêm vũ khí hoặc triển khai R2. Các bước ngoài manifest cần duyệt riêng. **NO COMMIT / NO PUSH / NO DEPLOY** tới khi Owner duyệt chính xác manifest R1D trong hội thoại.
+
+## R1E — Combat Timing Audit (local, 19/10/2026)
+
+**READY_FOR_APPROVAL — audit và regression tests, không đổi gameplay.** Baseline HEAD = origin/main = `b4ec9fc1d05dee40244e38e281c20de04776e7bb`; Git root/branch đúng, index trống. R1D đã phát hành; yêu cầu R1E không cấp quyền stage/commit/push/deploy.
+
+### Kết luận và phạm vi bằng chứng
+
+Chưa tái hiện lỗi Player đánh nhanh hơn Bot, lỗi cấp đòn khi đổi mục tiêu hoặc lợi thế bí mật cho quân đã giao chiến. Hai Giác Đấu cùng HP/điều kiện luôn có cùng lịch sát thương trong các mẫu đối xứng. Đổi phe, ID và thứ tự mảng không thay kết quả. **Không nerf/buff, không sửa code combat.** Không thể quy nguyên nhân chính xác cho lần Owner quan sát khi chưa có chuỗi thao tác/trạng thái của lần đó.
+
+Có hai yếu tố đã đo được: đòn đầu tức thì và nhiều quân cùng phe chồng nhau. Ngoài ra, `attackInterval = 0.35` hiện dùng cách mang phần dư timer từ R1C, **không bảo đảm mọi khoảng cách giữa hai hit thực tế đều >= 0.35s**. Đây là mô tả code hiện hành, không phải quyết định cân bằng mới của Owner. Sai số frame có thể rút ngắn hoặc kéo dài một khoảng; audit không tự đổi sang luật khoảng cách tối thiểu.
+
+Giữ nguyên Giác Đấu 38 HP / 7 DMG / interval 0.35s / tốc 138 / tầm 28 / giá 20 / CD slot 1.5s. Giữ Rìu, Giáo, Búa, Khiên, Trường Kiếm, năm slot chọn từ sáu quân, kinh tế đối xứng, nhà 240 HP, stack và bất biến không xuyên phe/không Hòa.
+
+### Timer, spawn và rời/vào tầm
+
+- `summon` cùng một hàm cho hai phe: trừ 20 Vàng, đặt CD slot 1.5s, sinh quân đầy 38 HP, `attackIn = 0`, `engaged = false`, `flash = 0`. CD slot chỉ giới hạn mua quân mới, không quyết định nhịp đánh của quân đã sinh.
+- Mỗi bước cap `dt <= 0.05`: giảm timer, di chuyển từ snapshot chung, chọn tất cả đòn trước rồi áp sát thương. Giác Đấu không có windup như Rìu/Búa: nếu trong tầm và timer sẵn sàng, đánh ngay ở bước đó. Đòn chí mạng cùng bước không hủy đòn trả đã chọn.
+- Sau hit, Giác Đấu cộng 0.35 vào timer đã trừ dt, giữ phần dư. Ví dụ dt 0.01: hit đầu tại 0.01, timer còn 0.34; hit thứ hai tại 0.35. Với dt 0.05: hit đầu 0.05, kế 0.35, cách **0.30s**. Frame lẻ có khoảng 0.324s và 0.365s; không phải hard minimum 0.35. Không đánh nhiều lần trong một bước, không tích vô hạn đòn khi đi đường.
+- Đổi mục tiêu trong tầm giữ timer. Bỏ mục tiêu cũ ở 0.10/0.34s: mục tiêu mới chỉ nhận hit tại 0.35 và 0.70. Đổi sau hit 0.35: chờ tới 0.70, không được thêm hit tức thì.
+- Ra ngoài tầm: `engaged = false`, giữ CD chưa hết nhưng clamp readiness tại 0. Rời một bước rồi vào lại vẫn phải chờ hit 0.35. Rời hai giây: vào lại tại 2.02 được một hit ngay, kế 2.36; không dồn nhiều hit đã bỏ lỡ.
+- Bot quyết định cuối bước; quân mới không hành động trong bước sinh. Mẫu Bot mua Giác Đấu thật tại 0.75s: hit đầu 0.76s; Player nhập lệnh sau cùng bước ở trạng thái phản chiếu có cùng HP, Vàng, CD, vị trí và lịch đánh. Không có lượt đánh thêm lúc spawn cho Player.
+
+### Đối xứng và FPS/dt
+
+Sáu lịch dt: 100/60/30/20 FPS, lặp 0.013/0.027/0.041s, và input dt 0.2 bị cap thành 0.05. Mỗi lịch thử khoảng cách 28 và 140; mỗi khoảng thử đủ 2 phe phản chiếu × 2 cách gán ID × 2 thứ tự mảng = **96 duel**. HP thật, tốc thật, không đồng minh hoặc can thiệp damage; chỉ khóa CD Bot để cô lập tiếp viện.
+
+Các hit khi bắt đầu đã trong tầm 28 (thời gian mô phỏng tính từ fixture):
+
+| Lịch dt | Thời điểm sáu hit của mỗi phe (s) | Kết quả |
+| --- | --- | --- |
+| 100 FPS | 0.01 / 0.35 / 0.70 / 1.05 / 1.40 / 1.75 | Cùng chết |
+| 60 FPS | 0.016667 / 0.35 / 0.70 / 1.05 / 1.40 / 1.75 | Cùng chết |
+| 30 FPS | 0.033333 / 0.366667 / 0.70 / 1.066667 / 1.40 / 1.766667 | Cùng chết |
+| 20 FPS | 0.05 / 0.35 / 0.70 / 1.05 / 1.40 / 1.75 | Cùng chết |
+| Frame lẻ | 0.013 / 0.364 / 0.729 / 1.053 / 1.417 / 1.782 | Cùng chết |
+| dt 0.2 cap 0.05 | 0.05 / 0.35 / 0.70 / 1.05 / 1.40 / 1.75 | Cùng chết |
+
+Mỗi hit của **cả hai phe** có cùng HP trước/sau: **38→31, 31→24, 24→17, 17→10, 10→3, 3→0**. Đây là hai quân cùng chết; trận vẫn `running`, hai nhà vẫn 240, không sinh kết quả Hòa. Khoảng cách 140: hit đầu 0.41–0.45s, kết thúc 2.15–2.187s; các biến thể phản chiếu/ID/mảng vẫn giống nhau trong cùng lịch dt.
+
+Đo cadence riêng bằng dummy đứng yên, không phản công, HP tăng chỉ trong fixture: cả hai phe cùng **10 hit / 70 DMG trong 3.2s** trên sáu lịch. Từ hit thứ hai, thời điểm hit nằm trong một bước sau mốc interval liên tục; không có timer trôi tích lũy hoặc burst nhiều hit trong một bước. Cách mang phần dư này đã tồn tại trước R1E; không dùng test để chốt một luật mới.
+
+Tất cả số trên là **thời gian mô phỏng**. Nếu máy chỉ chạy 5 FPS (dt thật 0.2), cap chỉ tiến 0.05 mỗi frame: mô phỏng chậm hơn thời gian thực, không chạy bù. Không tuyên bố game là lockstep hoặc mọi trận giữ kết quả giống nhau giữa các FPS.
+
+### Quân đã giao chiến và quân mới sinh
+
+Fixture chuyển mục tiêu có kiểm soát tại cửa Bot: cựu binh Player x=808, HP 38, timer sẵn sàng; địch cũ x=836, HP 7, CD đánh còn 0.2s. Hit 0.01 hạ địch cũ, cựu binh vẫn 38 HP nhưng CD còn 0.34. Sau đó Bot mua Giác Đấu mới qua validator thật: x=836, HP 38, timer 0. Phản chiếu hai phe cho kết quả tương ứng.
+
+| Thời gian (s) | Quân đánh / mục tiêu | HP mục tiêu trước→sau |
+| --- | --- | --- |
+| 0.01 | Cựu binh → địch cũ | 7→0 |
+| 0.02 | Mới sinh → cựu binh | 38→31 |
+| 0.35 | Cựu binh → mới sinh | 38→31 |
+| 0.36 | Mới sinh → cựu binh | 31→24 |
+| 0.70 | Cựu binh → mới sinh | 31→24 |
+| 0.71 | Mới sinh → cựu binh | 24→17 |
+| 1.05 | Cựu binh → mới sinh | 24→17 |
+| 1.06 | Mới sinh → cựu binh | 17→10 |
+| 1.40 | Cựu binh → mới sinh | 17→10 |
+| 1.41 | Mới sinh → cựu binh | 10→3 |
+| 1.75 | Cựu binh → mới sinh | 10→3 |
+| 1.76 | Mới sinh → cựu binh | 3→0 |
+
+Quân mới thắng còn **3 HP**, vì cựu binh chưa hồi CD; tuổi quân không cấp buff. Fixture bắt đầu từ ranh giới giao chiến đã bị thương, không phải tuyên bố tái hiện toàn bộ lịch sử spawn của quân cũ.
+
+Một mẫu khác chạy từ lệnh mua thật lúc đầu trận: Giác Đấu đến x=822, đánh nhà Bot một hit ở **5.06s** (nhà còn 233/240), Bot mua Giác Đấu mới ngay sau đó. Quân mới hit 5.07 / 5.41 / 5.76 / 6.11 / 6.46 / 6.81; cựu binh hit quân mới 5.40 / 5.75 / 6.10 / 6.45 / 6.80. Cựu binh chết **6.81s**, quân mới còn 3 HP. Thử chờ thêm 0.10 hoặc 0.34s trước mua, đổi phe, vẫn không tạo thắng lợi bí mật cho cựu binh. Trong mẫu này chỉ CD AI bị khóa để không có quân thứ ba; giá, thu nhập, di chuyển, spawn và damage đều thật.
+
+Spawn sát chiến tuyến: **240 duel** = 6 lịch dt × khoảng cách 14/28/28.01/40/140 × 2 phe × 2 ID × 2 thứ tự mảng. Một bên đã có mặt nhưng timer sẵn sàng, bên kia mua mới đầy HP. Cả hai cùng chết sau sáu hit, không có thắng do thứ tự xử lý. Khoảng cách cửa/nhà vẫn theo luật chuẩn, không xuyên phe, không hạ nhà khi còn địch chắn.
+
+### Stack và phong cách B — tách khỏi bug timing
+
+Hai Giác Đấu chồng ở x=480 gặp một Giác Đấu x=508: mỗi quân vẫn chỉ gây 7/hit; tổng hai quân là 14/loạt. Địch mất **38→24 tại 0.01, 24→10 tại 0.35, 10→0 tại 0.70s**. Hai quân cùng phe còn 17/38 HP; đảo phe giữ kết quả. Hình/nhãn đang chồng có thể làm người xem tưởng một quân đánh quá nhanh, nhưng mẫu này không chứng minh đó chính là tình huống Owner đã gặp.
+
+Duel 1v1 Giác Đấu đang ngắn hơn định hướng B **4–7s**: cần `ceil(38/7) = 6` hit, đòn đầu tức thì nên chỉ có năm khoảng 0.35s trước hit hạ quân (xấp xỉ **1.75s**). Đòn đầu góp phần rút ngắn trận, không giải thích toàn bộ khoảng cách với mục tiêu B. Nếu chỉ chờ thêm một interval trước hit đầu, tính lý thuyết cũng mới khoảng **2.10s**, chưa đạt 4–7s; đây là phép tính đề xuất, **chưa triển khai hoặc coi là quyết định Owner**.
+
+PROPOSED cho Owner: xác định 0.35s cần là cadence có sai số frame như hiện tại hay khoảng cách tối thiểu giữa mọi hit; xác định Giác Đấu có chủ đích là ngoại lệ giao tranh nhanh hay phải nằm trong 4–7s. Nếu đổi, duyệt riêng thay đổi windup/cadence hoặc cân bằng; R1E không tự chọn số HP/DMG mới, không giới hạn stack và không đổi luật đòn đầu.
+
+### Kiểm chứng và manifest R1E
+
+Build/typecheck PASS. Full suite **61/61 PASS** (71.47s, không skip/flaky): 47 test cũ + 14 audit mới; tổng **57 model/playtest + 4 browser Chrome** trên production preview `/laneforge-game/`. Browser kiểm tra chiến đấu tới thắng và restart, thua khi không triệu hồi, hai kinh tế/slot Bot chỉ xem, lựa chọn Búa, keyboard/touch và mobile 390×844; không lỗi console/network. Audit không thay UI hoặc build tag R1D.
+
+Security gate **PASS_HEURISTIC**: 22 tracked/candidate, 0 staged, 0 tracked prompts, 17 ignore checks, findings rỗng; build chỉ có HTML/JS/CSS. `npm audit --audit-level=low`: **0 vulnerabilities**. Scanner dùng heuristic tên/nội dung/lịch sử đường dẫn, không phải chứng minh tuyệt đối mọi secret/PII đều không tồn tại. Prompts, môi trường, credentials và output local vẫn được ignore.
+
+SHA-256 build lại khớp artifact R1D đã phát hành ở cả ba file: HTML `61571bbb4d5e9958b4245c5b03a67c7f4555b1b764cbd12ad24fe628adc146ac`, JS `9b60c0fc46201795114b74b15412b030516c7d590a81bf905e3041fc537f17b4`, CSS `c64bd1b9c55b43215ba573e05aad124a9f49f6025d3ba842799610a2648b78dd`. Bundle Phaser vẫn cảnh báo >500kB; không đổi dependency hoặc thêm chia bundle trong audit này.
+
+JSON reporter giữ toàn bộ thời điểm, dt yêu cầu/thực dùng, ID các quân đánh, vị trí/timer, HP trước/sau và HP nhà cho các trace cadence/handoff/range/veteran/stack. Bộ đối xứng/gate giữ từng hit và HP hai quân. Chạy lại bằng `npm run build`, rồi `npm run test:browser -- --grep R1E: --reporter=list,json`; full suite bỏ `--grep R1E:`. Log/JSON, screenshot và output build chỉ ở đường dẫn local được ignore; không đưa lên public repo.
+
+Manifest dự kiến **2 file sửa, 0 thêm/xóa**:
+
+```text
+docs/GAME_DESIGN.md
+tests/smoke.spec.ts
+```
+
+Không thay source gameplay, package/lockfile, workflow hoặc security policy. Giới hạn: mẫu có kiểm soát không bao phủ mọi lịch input; chưa có replay lần Owner quan sát; stack vẫn che hình/nhãn; frame sampling và dt cap vẫn như R1D. Chưa stage/commit/push/deploy.

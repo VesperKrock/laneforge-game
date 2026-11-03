@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R1D <span aria-hidden="true">/</span> SOLO VS BOT</span>
+        <span class="build-tag">R2A LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -25,6 +25,23 @@
         <div class="deployment-heading"><div><p class="eyebrow">CHỌN QUÂN TRƯỚC TRẬN</p><h2 id="armory-title">Mang năm loại từ kho sáu quân</h2></div><button id="setup" class="setup-button" type="button" disabled>Về chuẩn bị</button></div>
         <div id="armory-choices" class="armory-choices" role="group" aria-label="Chọn năm loại quân khác nhau"></div>
         <p id="selection-count" role="status">Đã chọn 5/5</p>
+        <details id="workshop" class="workshop">
+          <summary>Xưởng thử nghiệm R2A</summary>
+          <p class="workshop-help">Lắp Bộ Binh demo vào một slot; Bot dùng cùng bản lắp ráp. 15 vũ khí cận chiến thử nghiệm, 28 món còn lại chỉ có trong danh mục thiết kế.</p>
+          <fieldset id="workshop-controls">
+            <legend>Bộ Binh demo · trang bị cho trận này</legend>
+            <div class="workshop-fields">
+              <label>Slot thay thế<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label>
+              <label>Vũ khí chính<select id="custom-weapon"></select></label>
+              <label>Tay phụ<select id="custom-offhand" aria-describedby="grip-note"><option value="empty">Trống</option><option value="shield">Khiên mẫu · 30 HP · +10 Vàng</option></select></label>
+            </div>
+            <p id="grip-note"></p>
+            <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Dùng bản lắp ráp</button><button id="clear-custom" class="setup-button" type="button">Trở về năm preset</button></div>
+          </fieldset>
+          <p id="custom-stats" class="custom-stats" aria-live="polite"></p>
+          <p class="workshop-help">TEMP_R2A: số liệu và cờ cầm hai tay đang chờ Owner đánh giá. Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Mô tả đặc biệt của vũ khí chưa thành passive.</p>
+          <p id="custom-status" role="status">Chưa dùng bản lắp ráp · giữ gameplay R1D.</p>
+        </details>
       </section>
 
       <section class="deployment bot-deployment" aria-labelledby="bot-title">

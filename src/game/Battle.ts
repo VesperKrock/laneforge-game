@@ -1,3 +1,6 @@
+import { compileBuild, validateBuild } from './UnitBuild';
+import type { CompiledUnitProfile, UnitBuild } from './UnitBuild';
+
 // Shared rules; all combat values remain provisional, not locked balance.
 export const DEMO = Object.freeze({
   width: 960,
@@ -46,11 +49,43 @@ export interface Unit {
   attackIn: number;
   engaged: boolean;
   flash: number;
+  // Absent on legacy units, including the unchanged R1E fixtures.
+  profile?: CompiledUnitProfile;
+  shieldHp?: number;
+}
+
+const isSupport = (unit: Unit) => !unit.profile && unit.kind === 'spear';
+function applyDamage(target: Unit, damage: number): void {
+  if (target.profile) {
+    const absorbed = Math.min(target.shieldHp ?? 0, damage);
+    target.shieldHp = (target.shieldHp ?? 0) - absorbed;
+    damage -= absorbed;
+  }
+  target.hp = Math.max(0, target.hp - damage);
 }
 
 export class Battle {
   private selected: readonly UnitKind[] = DEFAULT_LOADOUT;
   get loadout(): readonly UnitKind[] { return this.selected; }
+  private custom: Readonly<{ slot: number; profile: CompiledUnitProfile }> | undefined;
+  get customSlot() { return this.custom; }
+
+  getSlotProfile(slot: number) {
+    return this.custom?.slot === slot ? this.custom.profile : TEMP_R1D_UNITS[this.loadout[slot]];
+  }
+
+  setCustomBuild(slot: number, build: unknown): boolean {
+    if (this.phase !== 'ready' || !Number.isInteger(slot) || slot < 0 || slot >= 5 || !validateBuild(build).valid) return false;
+    const profile = compileBuild(build as UnitBuild);
+    this.custom = Object.freeze({ slot, profile });
+    return true;
+  }
+
+  clearCustomBuild(): boolean {
+    if (this.phase !== 'ready') return false;
+    this.custom = undefined;
+    return true;
+  }
 
   setLoadout(kinds: readonly UnitKind[]): boolean {
     if (this.phase !== 'ready' || kinds.length !== 5 || new Set(kinds).size !== 5
@@ -95,17 +130,17 @@ export class Battle {
 
   canSummon(side: Side, slot: number): boolean {
     if ((side !== 'friendly' && side !== 'enemy') || !Number.isInteger(slot) || slot < 0 || slot >= this.loadout.length) return false;
-    const profile = TEMP_R1D_UNITS[this.loadout[slot]];
+    const profile = this.getSlotProfile(slot);
     return this.phase === 'running' && this.cooldowns[side][slot] <= 0 && this.gold[side] >= profile.cost && this.spawnIsClear(side);
   }
 
   summon(side: Side, slot: number): boolean {
     if (!this.canSummon(side, slot)) return false;
     const kind = this.loadout[slot];
-    const profile = TEMP_R1D_UNITS[kind];
+    const profile = this.getSlotProfile(slot);
     this.gold[side] -= profile.cost;
     this.cooldowns[side][slot] = profile.cooldown;
-    this.spawn(side, kind);
+    this.spawn(side, kind, this.custom?.slot === slot ? this.custom.profile : undefined);
     this.event = `${side === 'friendly' ? 'Player' : 'Bot'}: ${profile.name} — trừ ${profile.cost} Vàng thử nghiệm.`;
     return true;
   }
@@ -128,7 +163,7 @@ export class Battle {
     // Move Spears first: pursuers must approach their new position, not stop at the old one.
     // Each group still uses one snapshot for both sides; allies may overlap, opponents may not cross.
     for (const support of [true, false]) {
-      const moves = this.units.filter(unit => unit.hp > 0 && (unit.kind === 'spear') === support)
+      const moves = this.units.filter(unit => unit.hp > 0 && isSupport(unit) === support)
         .map(unit => ({ unit, x: this.nextX(unit, dt) }));
       for (const { unit, x } of moves) unit.x = x;
       this.assertBattleInvariant();
@@ -145,16 +180,18 @@ export class Battle {
       }
       if (!unit.engaged) {
         unit.engaged = true;
-        if (unit.kind === 'axe' || unit.kind === 'hammer') {
+        if (unit.profile) {
+          unit.attackIn = Math.max(unit.attackIn, unit.profile.windup);
+        } else if (unit.kind === 'axe' || unit.kind === 'hammer') {
           unit.attackIn = Math.max(unit.attackIn, TEMP_R1D.firstHit[unit.kind]);
         }
       }
       if (unit.attackIn <= EPSILON) {
         // Heavy swings must never repeat earlier than their interval, including across re-engagements.
-        unit.attackIn = unit.kind === 'axe' || unit.kind === 'hammer'
+        unit.attackIn = unit.profile || unit.kind === 'axe' || unit.kind === 'hammer'
           ? unit.attackInterval : unit.attackIn + unit.attackInterval;
         unit.flash = 0.15;
-        const splash = unit.kind === 'hammer' && target ? this.units
+        const splash = !unit.profile && unit.kind === 'hammer' && target ? this.units
           .filter(other => other !== target && other.side !== unit.side && other.hp > 0
             && Math.abs(other.x - target.x) <= TEMP_R1D.splash.radius + EPSILON)
           .sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x) || a.id - b.id) : [];
@@ -162,13 +199,13 @@ export class Battle {
       }
     }
     for (const { unit, target, splash } of attacks) {
-      if (target) target.hp = Math.max(0, target.hp - unit.damage);
+      if (target) applyDamage(target, unit.damage);
       else if (unit.side === 'friendly') this.enemyHp = Math.max(0, this.enemyHp - unit.damage);
       else this.playerHp = Math.max(0, this.playerHp - unit.damage);
-      for (const other of splash) other.hp = Math.max(0, other.hp - TEMP_R1D.splash.damage);
+      for (const other of splash) applyDamage(other, TEMP_R1D.splash.damage);
       if (unit.side === 'friendly') {
         this.hits += 1;
-        const name = TEMP_R1D_UNITS[unit.kind].name;
+        const name = unit.profile?.name ?? TEMP_R1D_UNITS[unit.kind].name;
         this.event = target ? `${name} đánh trúng lính địch!` : `${name} đánh trúng căn cứ địch!`;
       } else this.event = target ? 'Đơn vị ta đang giao chiến.' : 'Căn cứ ta đang bị tấn công!';
     }
@@ -235,8 +272,8 @@ export class Battle {
     const direction = unit.side === 'friendly' ? 1 : -1;
     const { target, distance } = this.targetAhead(unit);
     let supportSpace = Infinity;
-    if (unit.kind === 'spear') {
-      const melee = this.units.filter(other => other.side === unit.side && other.hp > 0 && other.kind !== 'spear'
+    if (isSupport(unit)) {
+      const melee = this.units.filter(other => other.side === unit.side && other.hp > 0 && !isSupport(other)
         && Math.abs(other.x - unit.x) <= TEMP_R1D.nearbyMelee);
       const front = melee.length ? melee.reduce((a, b) => (b.x - a.x) * direction > 0 ? b : a) : undefined;
       // A 6-unit margin inside range prevents retreat/advance jitter, including opposing Spears.
@@ -261,7 +298,7 @@ export class Battle {
   private chooseBotSlot(): { slot: number; reason: string } | undefined {
     const own = this.units.filter(unit => unit.side === 'enemy' && unit.hp > 0);
     const foes = this.units.filter(unit => unit.side === 'friendly' && unit.hp > 0);
-    const melee = own.filter(unit => unit.kind !== 'spear');
+    const melee = own.filter(unit => !isSupport(unit));
     const pressure = foes.some(unit => unit.x >= DEMO.enemyBaseX - 180);
     const durable = foes.some(unit => unit.hp >= TEMP_R1D_UNITS.axe.hp
       && melee.some(front => Math.abs(front.x - unit.x) <= 90));
@@ -279,21 +316,24 @@ export class Battle {
       gladiator: { score: pressure ? 8 : 3, reason: pressure ? 'Ứng cứu nhanh' : 'Tiếp viện nhanh' },
       hammer: { score: clustered ? 10 : 0, reason: 'Đánh nhóm quân gần nhau' },
     };
-    const choices = this.loadout.map((kind, slot) => ({ slot, reason: priorities[kind].reason,
-      score: priorities[kind].score - own.filter(unit => unit.kind === kind).length * 2 - (this.botChoice?.slot === slot ? 2 : 0),
-    })).filter(choice => choice.score > 0 && this.cooldowns.enemy[choice.slot] <= 0)
+    const choices = this.loadout.map((kind, slot) => {
+      const custom = this.custom?.slot === slot ? this.custom.profile : undefined;
+      const priority = custom ? { score: 5, reason: 'Cận chiến thử nghiệm' } : priorities[kind];
+      const count = own.filter(unit => custom ? unit.profile?.weaponId === custom.weaponId : !unit.profile && unit.kind === kind).length;
+      return { slot, reason: priority.reason, score: priority.score - count * 2 - (this.botChoice?.slot === slot ? 2 : 0) };
+    }).filter(choice => choice.score > 0 && this.cooldowns.enemy[choice.slot] <= 0)
       .sort((a, b) => b.score - a.score || a.slot - b.slot);
     const preferred = choices[0];
     // Briefly save for useful support/tank/heavy damage; emergency defense may use cheaper troops.
     if (preferred && preferred.score >= 8 && !pressure
-      && this.gold.enemy < TEMP_R1D_UNITS[this.loadout[preferred.slot]].cost) return undefined;
+      && this.gold.enemy < this.getSlotProfile(preferred.slot).cost) return undefined;
     return choices.find(choice => this.canSummon('enemy', choice.slot));
   }
 
-  private spawn(side: Side, kind: UnitKind): void {
-    const profile = TEMP_R1D_UNITS[kind];
+  private spawn(side: Side, kind: UnitKind, custom?: CompiledUnitProfile): void {
+    const profile = custom ?? TEMP_R1D_UNITS[kind];
     this.units.push({
-      id: this.nextId++, side, kind,
+      id: this.nextId++, side, kind: custom ? 'sword' : kind,
       // Spawn inside base attack range so reinforcements cannot appear behind an attacker.
       x: this.spawnX(side),
       hp: profile.hp, maxHp: profile.hp,
@@ -302,6 +342,7 @@ export class Battle {
       attackInterval: profile.attackInterval,
       attackRange: profile.attackRange,
       attackIn: 0, engaged: false, flash: 0,
+      ...(custom ? { profile: custom, shieldHp: custom.shieldHp } : {}),
     });
   }
 }

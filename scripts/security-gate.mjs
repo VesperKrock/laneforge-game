@@ -11,6 +11,8 @@ const publicFiles = [
   'index.html', 'package.json', 'package-lock.json', 'tsconfig.json',
   'vite.config.ts', 'playwright.config.ts', 'src/main.ts', 'src/style.css',
   'src/game/Battle.ts', 'src/game/BattleScene.ts',
+  'src/game/WeaponCatalog.ts', 'src/game/UnitBuild.ts',
+  'tests/modular.spec.ts', 'docs/R2A_REVIEW.md',
   'scripts/security-gate.mjs', 'tests/smoke.spec.ts',
 ];
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));

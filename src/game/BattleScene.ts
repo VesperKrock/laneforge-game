@@ -69,7 +69,18 @@ export class BattleScene extends Phaser.Scene {
       }
       g.fillStyle(0xe9f3dd).fillCircle(unit.x, 239 + bob, 7);
       g.lineStyle(unit.flash > 0 ? 4 : 2, 0xf8dfaa);
-      if (unit.kind === 'spear') {
+      if (unit.profile) {
+        // Five family placeholders share the same combat model; no source passive is implied.
+        const family = unit.profile.family;
+        const reach = unit.flash > 0 ? unit.attackRange : Math.min(unit.attackRange, 24);
+        const tipX = unit.x + direction * reach;
+        const thrust = family === 'polearm' || family === 'one_hand_pierce';
+        g.lineStyle(family === 'two_hand_heavy' ? 5 : 2, 0xf8dfaa);
+        g.lineBetween(unit.x + direction * 7, 257 + bob, tipX, (thrust ? 253 : 231) + bob);
+        if (family === 'one_hand_blunt') g.fillStyle(0xd6c9a8).fillRect(tipX - 7, 227 + bob, 14, 10);
+        if (family === 'polearm') g.fillStyle(0xf8dfaa).fillTriangle(tipX, 253 + bob, tipX - direction * 8, 249 + bob, tipX - direction * 8, 257 + bob);
+        if ((unit.shieldHp ?? 0) > 0) g.fillStyle(0x94cbee).fillRoundedRect(unit.x - direction * 13 - 5, 248 + bob, 10, 23, 3);
+      } else if (unit.kind === 'spear') {
         const tipX = unit.x + direction * (unit.attackRange - 6);
         g.lineBetween(unit.x + direction * 7, 257 + bob, tipX, 245 + bob);
         g.fillStyle(0xf8dfaa).fillTriangle(tipX, 245 + bob, tipX - direction * 8, 241 + bob, tipX - direction * 8, 249 + bob);
@@ -83,12 +94,16 @@ export class BattleScene extends Phaser.Scene {
       if (unit.kind === 'gladiator') g.lineBetween(unit.x - direction * 8, 257 + bob, unit.x - direction * 19, 237 + bob);
       g.fillStyle(0x071115).fillRect(unit.x - 10, 218 + offset, 20, 4);
       g.fillStyle(color).fillRect(unit.x - 10, 218 + offset, 20 * unit.hp / unit.maxHp, 4);
+      if (unit.profile?.shieldHp) {
+        g.fillStyle(0x071115).fillRect(unit.x - 10, 211 + offset, 20, 4);
+        g.fillStyle(0x94cbee).fillRect(unit.x - 10, 211 + offset, 20 * (unit.shieldHp ?? 0) / unit.profile.shieldHp, 4);
+      }
       let label = this.unitLabels.get(unit.id);
       if (!label) {
         label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1D_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);
         this.unitLabels.set(unit.id, label);
       }
-      label.setText(TEMP_R1D_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
+      label.setText(unit.profile ? `X-${unit.profile.mark}` : TEMP_R1D_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
     }
     const labels = { ready: 'CHỜ LỆNH TRIỆU HỒI', running: '', won: 'THẮNG — GIỮ VỮNG CHIẾN TUYẾN', lost: 'THUA — THỬ MỘT NHỊP TRIỆU HỒI KHÁC' };
     this.message.setText(labels[this.battle.phase]);

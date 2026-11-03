@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 import { Battle, DEMO, UNIT_KINDS, TEMP_R1D_UNITS } from './game/Battle';
 import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
+import { ACTIVE_WEAPONS, WEAPON_CATALOG } from './game/WeaponCatalog';
+import { compileBuild } from './game/UnitBuild';
+import type { UnitBuild } from './game/UnitBuild';
 import './style.css';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -14,6 +17,38 @@ const battle = new Battle();
 const start = element<HTMLButtonElement>('start');
 const setup = element<HTMLButtonElement>('setup');
 const selectionCount = element('selection-count');
+const workshopControls = element<HTMLFieldSetElement>('workshop-controls');
+const customSlot = element<HTMLSelectElement>('custom-slot');
+const customWeapon = element<HTMLSelectElement>('custom-weapon');
+const customOffhand = element<HTMLSelectElement>('custom-offhand');
+for (const weapon of ACTIVE_WEAPONS) {
+  const option = document.createElement('option');
+  option.value = weapon.id;
+  option.textContent = WEAPON_CATALOG.find(item => item.id === weapon.id)!.sourceName;
+  customWeapon.append(option);
+}
+customWeapon.value = 'axe';
+function draftBuild(): UnitBuild {
+  return { coreId: 'infantry_demo', equipment: { mainHand: customWeapon.value,
+    offHand: customOffhand.value === 'shield' ? { kind: 'shield', shieldId: 'demo_shield' } : { kind: 'empty' },
+  } };
+}
+function previewBuild(): void {
+  const weapon = ACTIVE_WEAPONS.find(item => item.id === customWeapon.value)!;
+  const fixed = weapon.gripClass !== 'one_hand';
+  customOffhand.querySelector<HTMLOptionElement>('option[value="shield"]')!.disabled = fixed;
+  if (fixed) customOffhand.value = 'empty';
+  const p = compileBuild(draftBuild());
+  element('grip-note').textContent = p.gripMode === 'fixed_two_hand' ? 'Vũ khí hai tay cố định · chiếm cả hai tay, không mang Khiên; không cộng thêm 30%.'
+    : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay (+30% damage vũ khí) · không mang Khiên.' : 'Một tay · không có bonus 30%.';
+  element('custom-stats').textContent = `Bộ Binh demo · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
+}
+for (const control of [customWeapon, customOffhand]) control.addEventListener('change', previewBuild);
+element('apply-custom').addEventListener('click', () => {
+  if (battle.setCustomBuild(Number(customSlot.value), draftBuild())) updateUi();
+});
+element('clear-custom').addEventListener('click', () => { if (battle.clearCustomBuild()) updateUi(); });
+previewBuild();
 let selected: UnitKind[] = [...battle.loadout];
 const armory = UNIT_KINDS.map(kind => {
   const profile = TEMP_R1D_UNITS[kind];
@@ -57,12 +92,14 @@ function updateUi(): void {
   const remaining = { friendly: battle.cooldowns.friendly.map(value => value > 0 ? value.toFixed(1) : '0'), enemy: battle.cooldowns.enemy.map(value => value > 0 ? value.toFixed(1) : '0') };
   const ready = { friendly: slots.friendly.map((_slot, index) => battle.canSummon('friendly', index)), enemy: slots.enemy.map((_slot, index) => battle.canSummon('enemy', index)) };
   const highlighted = battle.botChoice && battle.elapsed - battle.botChoice.at < 1 ? battle.botChoice.slot : -1;
-  const ui = [battle.phase, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
+  const custom = battle.customSlot;
+  const customKey = custom ? `${custom.slot}:${custom.profile.weaponId}:${custom.profile.shieldHp}` : '';
+  const ui = [battle.phase, customKey, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
   if (ui === previousUi) return;
   previousUi = ui;
   gold.textContent = String(Math.floor(battle.gold.friendly));
   botGold.textContent = String(Math.floor(battle.gold.enemy));
-  botChoice.textContent = battle.botChoice ? `Bot: ${TEMP_R1D_UNITS[battle.loadout[battle.botChoice.slot]].name} · ${battle.botChoice.reason}` : 'Bot chưa triệu hồi.';
+  botChoice.textContent = battle.botChoice ? `Bot: ${battle.getSlotProfile(battle.botChoice.slot).name} · ${battle.botChoice.reason}` : 'Bot chưa triệu hồi.';
   allies.textContent = String(friendlyCount);
   hits.textContent = String(battle.hits);
   playerHp.textContent = `${battle.playerHp} / ${DEMO.baseHp}`;
@@ -71,14 +108,16 @@ function updateUi(): void {
   start.textContent = battle.phase === 'ready' ? 'Bắt đầu' : 'Chơi lại';
   start.disabled = battle.phase === 'ready' && selected.length !== 5;
   setup.disabled = battle.phase === 'ready';
+  workshopControls.disabled = battle.phase !== 'ready';
+  element('custom-status').textContent = custom ? `Đang dùng slot ${custom.slot + 1}: ${custom.profile.name} · HP Khiên ${custom.profile.shieldHp} · Player/Bot cùng chỉ số, giá và CD.` : 'Chưa dùng bản lắp ráp · giữ gameplay R1D.';
   selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm loại.';
   for (const { button, kind } of armory) {
     button.setAttribute('aria-pressed', String(selected.includes(kind)));
     button.disabled = battle.phase !== 'ready' || (!selected.includes(kind) && selected.length === 5);
   }
   for (const side of ['friendly', 'enemy'] as const) slots[side].forEach(({ button, label }, index) => {
-    const kind = battle.loadout[index];
-    const profile = TEMP_R1D_UNITS[kind];
+    const kind = custom?.slot === index ? `custom:${custom.profile.weaponId}:${custom.profile.shieldHp}` : battle.loadout[index];
+    const profile = battle.getSlotProfile(index);
     if (button.dataset.unitType !== kind) {
       button.dataset.unitType = kind;
       button.querySelector('.unit-symbol')!.textContent = profile.mark;
