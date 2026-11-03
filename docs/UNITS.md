@@ -41,3 +41,22 @@ Nguồn duy nhất: `TEMP_R1D_UNITS`, `TEMP_R1D`, `DEFAULT_LOADOUT` và `Battle.
 **Búa — số revision Owner cho thử:** 26 lên mục tiêu chính; thêm 10 một lần lên **mọi địch sống khác** trong bán kính tâm 40 quanh mục tiêu đó; bỏ cap hai quân phụ. Thứ tự theo khoảng cách rồi ID, không lặp chính/phụ; phải có mục tiêu chính sống trong tầm mới có splash. Đánh đơn chỉ 26; nhà chỉ nhận đòn chính, không splash. DPS đơn lý thuyết Búa 26/1.8 ≈ 14.44 < Rìu 26/1.2 ≈ 21.67. Cụm ba nhận tổng 46/đòn, chia lên ba quân. Không friendly fire, giáp/xuyên giáp, stun, knockback, chí mạng hoặc hệ số ẩn; prototype chưa có trạng thái bất tử. Chưa tune thêm sau số revision.
 
 Không có Hòa trong luật thông thường; lỗi xuyên phe hoặc hai nhà cùng bị phá phải báo bất biến, không ưu tiên Player/Bot. Hình/nhãn chồng nhau vẫn có thể che nhau. [GAME_DESIGN](GAME_DESIGN.md) ghi đối đầu và giới hạn, không suy ra cân bằng cuối từ vài mẫu thử.
+
+## R2B LOCAL — TEMP_R2B / PROPOSED, chờ Owner duyệt
+
+Catalogue giữ nguyên 43 bản ghi nguồn, thứ tự, tên, loại sát thương, nhóm animation và ghi chú. 15 món R2A vẫn ghi `active_r2a`; đúng tám món dưới đây ghi `active_r2b`; 20 món còn lại `catalog_only`. Giá là **tổng** đã gồm lõi Bộ Binh 10 Vàng, chưa có Khiên; Khiên thêm 10 Vàng và 30 barrier. HP thân 60, tốc di chuyển 85 cho mọi custom hiện tại. Tất cả thông số mới ở bảng này là **TEMP_R2B**, không phải số từ workbook nguồn.
+
+| Món nguồn | Nhóm | Damage vũ khí/đòn | Windup | Chu kỳ | Tầm | Giá | CD | Cầm/Khiên | Vai trò thử nghiệm |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| Pike – Trường thương | Cán dài | 18 | 0.65s | 1.5s | 76 | 40 | 3.8s | 2H cố định; không Khiên | Tầm xa nhất; trả bằng windup/giá, không kite |
+| Đinh Ba | Cán dài | 15 | 0.35s | 1.1s | 64 | 35 | 3.2s | 2H cố định; không Khiên | Tầm hơn Thương; đòn nhẹ hơn Pike, không kite |
+| Morning Star - Chùy sao | Đập 1H | 24 | 0.55s | 1.4s | 28 | 34 | 3.2s | 1H; có Khiên; không bonus 2H | Đòn nặng hơn Mace nhưng chậm; không choáng |
+| Scimitar | Chém 1H | 9 | 0.08s | 0.48s | 28 | 24 | 2s | 1H; có Khiên; không bonus 2H | Nhanh hơn Sabre, mỗi đòn nhẹ |
+| Falchion- - Đao | Chém 1H | 20 | 0.4s | 1.05s | 28 | 33 | 2.8s | 1H+Khiên: 20; tay trống cầm 2H: 26 | Lưỡi nặng, chậm hơn Scimitar; chọn phòng thủ hoặc lực đánh |
+| Đoản kiếm | Chém 1H | 8 | 0.08s | 0.45s | 24 | 19 | 1.8s | 1H; có Khiên; không bonus 2H | Rẻ, nhanh, tầm ngắn và đòn nhẹ |
+| Chùy 2 tay | Nặng 2H | 38 | 0.85s | 1.9s | 30 | 43 | 4.2s | 2H cố định; không Khiên/bonus | Đòn mạnh, hồi lâu; không AOE/choáng |
+| Nodachi / Ōdachi | Nặng 2H | 27 | 0.6s | 1.35s | 52 | 42 | 3.8s | 2H cố định; không Khiên/bonus | Xa hơn Longsword, chậm và đắt hơn |
+
+Thương custom giữ chỉ số vũ khí R2A **10 / windup 0.15s / chu kỳ 0.9s / tầm 58**, nay nhận tag `support_retreat`: lùi chủ động **48/s** khi địch vào ngưỡng **52**, hỗ trợ sau cận chiến đồng minh khoảng **30** nếu ở gần trong **96**; chặn ở cổng nhà. Pike, Đinh Ba, Ji và Bardiche vẫn đơn mục tiêu, không tự kite. Búa chiến custom giữ **26 / 0.9s / 1.8s / tầm 28 / giá 45 / CD 4s**, nay nhận tag `splash`: thêm **10** lên *mọi* địch sống phụ trong bán kính **40 quanh mục tiêu chính**. Đòn chính vẫn 26; không splash đồng minh, nhà hoặc mục tiêu chết, và không nhân 10 bởi cách cầm vũ khí.
+
+Quy tắc +30% R2A chỉ tính trên damage vật lý của vũ khí 1H được cầm hai tay hợp lệ, làm tròn một lần. Falchion là món R2B duy nhất được bật vì cán/lưỡi cho phép đổi Khiên lấy lực đánh; Morning Star, Scimitar và Đoản kiếm giữ 1H vì cần nhịp nhẹ hoặc cách cầm gọn. Vũ khí 2H cố định không có bonus lần hai. Ví dụ Rìu + Khiên vẫn **26 damage +30 barrier / 45 Vàng**; Rìu tay trống **34 damage / 35 Vàng**. Các vai trò và giá/CD có thể chỉnh lại bằng dữ liệu sau playtest; Đoản kiếm giá thấp và Pike tầm 76 là hai điểm cần theo dõi để tránh spam/khóa tầm.

@@ -1,5 +1,7 @@
 import { compileBuild, validateBuild } from './UnitBuild';
 import type { CompiledUnitProfile, UnitBuild } from './UnitBuild';
+import { compileCombatBehavior, SINGLE_TARGET } from './WeaponCatalog';
+import type { CombatBehavior } from './WeaponCatalog';
 
 // Shared rules; all combat values remain provisional, not locked balance.
 export const DEMO = Object.freeze({
@@ -54,7 +56,13 @@ export interface Unit {
   shieldHp?: number;
 }
 
-const isSupport = (unit: Unit) => !unit.profile && unit.kind === 'spear';
+// Adapt legacy presets once, leaving their profiles and serialized battle traces unchanged.
+const presetSupport = compileCombatBehavior({ kind: 'support_retreat', retreatSpeed: TEMP_R1D.retreatSpeed,
+  kiteDistance: TEMP_R1D.kiteDistance, supportOffset: TEMP_R1D.supportOffset, nearbyMelee: TEMP_R1D.nearbyMelee });
+const presetSplash = compileCombatBehavior({ kind: 'splash', ...TEMP_R1D.splash });
+const behaviorOf = (unit: Unit): CombatBehavior => unit.profile?.behavior
+  ?? (unit.kind === 'spear' ? presetSupport : unit.kind === 'hammer' ? presetSplash : SINGLE_TARGET);
+const isSupport = (unit: Unit) => behaviorOf(unit).kind === 'support_retreat';
 function applyDamage(target: Unit, damage: number): void {
   if (target.profile) {
     const absorbed = Math.min(target.shieldHp ?? 0, damage);
@@ -169,7 +177,7 @@ export class Battle {
       this.assertBattleInvariant();
     }
     // Select every hit before applying damage: a same-tick lethal hit cannot cancel a reply.
-    const attacks: { unit: Unit; target: Unit | undefined; splash: Unit[] }[] = [];
+    const attacks: { unit: Unit; target: Unit | undefined; splash: Unit[]; splashDamage: number }[] = [];
     for (const unit of [...this.units].sort((a, b) => a.id - b.id)) {
       if (unit.hp <= 0) continue;
       const { target, distance } = this.targetAhead(unit);
@@ -191,18 +199,19 @@ export class Battle {
         unit.attackIn = unit.profile || unit.kind === 'axe' || unit.kind === 'hammer'
           ? unit.attackInterval : unit.attackIn + unit.attackInterval;
         unit.flash = 0.15;
-        const splash = !unit.profile && unit.kind === 'hammer' && target ? this.units
+        const behavior = behaviorOf(unit);
+        const splash = behavior.kind === 'splash' && target ? this.units
           .filter(other => other !== target && other.side !== unit.side && other.hp > 0
-            && Math.abs(other.x - target.x) <= TEMP_R1D.splash.radius + EPSILON)
+            && Math.abs(other.x - target.x) <= behavior.radius + EPSILON)
           .sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x) || a.id - b.id) : [];
-        attacks.push({ unit, target, splash });
+        attacks.push({ unit, target, splash, splashDamage: behavior.kind === 'splash' ? behavior.damage : 0 });
       }
     }
-    for (const { unit, target, splash } of attacks) {
+    for (const { unit, target, splash, splashDamage } of attacks) {
       if (target) applyDamage(target, unit.damage);
       else if (unit.side === 'friendly') this.enemyHp = Math.max(0, this.enemyHp - unit.damage);
       else this.playerHp = Math.max(0, this.playerHp - unit.damage);
-      for (const other of splash) applyDamage(other, TEMP_R1D.splash.damage);
+      for (const other of splash) applyDamage(other, splashDamage);
       if (unit.side === 'friendly') {
         this.hits += 1;
         const name = unit.profile?.name ?? TEMP_R1D_UNITS[unit.kind].name;
@@ -272,23 +281,24 @@ export class Battle {
     const direction = unit.side === 'friendly' ? 1 : -1;
     const { target, distance } = this.targetAhead(unit);
     let supportSpace = Infinity;
-    if (isSupport(unit)) {
+    const behavior = behaviorOf(unit);
+    if (behavior.kind === 'support_retreat') {
       const melee = this.units.filter(other => other.side === unit.side && other.hp > 0 && !isSupport(other)
-        && Math.abs(other.x - unit.x) <= TEMP_R1D.nearbyMelee);
+        && Math.abs(other.x - unit.x) <= behavior.nearbyMelee);
       const front = melee.length ? melee.reduce((a, b) => (b.x - a.x) * direction > 0 ? b : a) : undefined;
       // A 6-unit margin inside range prevents retreat/advance jitter, including opposing Spears.
-      if (target && distance <= TEMP_R1D.kiteDistance + EPSILON
+      if (target && distance <= behavior.kiteDistance + EPSILON
         && (!front || (front.x - unit.x) * direction <= EPSILON)) {
-        return unit.x - direction * Math.min(TEMP_R1D.retreatSpeed * dt,
+        return unit.x - direction * Math.min(behavior.retreatSpeed * dt,
           Math.max(0, (unit.x - this.spawnX(unit.side)) * direction));
       }
       if (front) {
         const supportX = direction === 1
-          ? Math.max(this.spawnX(unit.side), front.x - TEMP_R1D.supportOffset)
-          : Math.min(this.spawnX(unit.side), front.x + TEMP_R1D.supportOffset);
+          ? Math.max(this.spawnX(unit.side), front.x - behavior.supportOffset)
+          : Math.min(this.spawnX(unit.side), front.x + behavior.supportOffset);
         supportSpace = (supportX - unit.x) * direction;
         if (supportSpace < -EPSILON) {
-          return unit.x - direction * Math.min(TEMP_R1D.retreatSpeed * dt, -supportSpace);
+          return unit.x - direction * Math.min(behavior.retreatSpeed * dt, -supportSpace);
         }
       }
     }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Battle, DEMO, UNIT_KINDS, TEMP_R1D_UNITS } from './game/Battle';
 import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
-import { ACTIVE_WEAPONS, WEAPON_CATALOG } from './game/WeaponCatalog';
+import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, describeCombatBehavior } from './game/WeaponCatalog';
 import { compileBuild } from './game/UnitBuild';
 import type { UnitBuild } from './game/UnitBuild';
 import './style.css';
@@ -21,11 +21,16 @@ const workshopControls = element<HTMLFieldSetElement>('workshop-controls');
 const customSlot = element<HTMLSelectElement>('custom-slot');
 const customWeapon = element<HTMLSelectElement>('custom-weapon');
 const customOffhand = element<HTMLSelectElement>('custom-offhand');
-for (const weapon of ACTIVE_WEAPONS) {
-  const option = document.createElement('option');
-  option.value = weapon.id;
-  option.textContent = WEAPON_CATALOG.find(item => item.id === weapon.id)!.sourceName;
-  customWeapon.append(option);
+for (const family of ['one_hand_slash', 'one_hand_pierce', 'one_hand_blunt', 'polearm', 'two_hand_heavy'] as const) {
+  const group = document.createElement('optgroup');
+  group.label = FAMILY_LABELS[family];
+  for (const weapon of ACTIVE_WEAPONS.filter(item => item.animationFamily === family)) {
+    const option = document.createElement('option');
+    option.value = weapon.id;
+    option.textContent = WEAPON_CATALOG.find(item => item.id === weapon.id)!.sourceName;
+    group.append(option);
+  }
+  customWeapon.append(group);
 }
 customWeapon.value = 'axe';
 function draftBuild(): UnitBuild {
@@ -41,7 +46,8 @@ function previewBuild(): void {
   const p = compileBuild(draftBuild());
   element('grip-note').textContent = p.gripMode === 'fixed_two_hand' ? 'Vũ khí hai tay cố định · chiếm cả hai tay, không mang Khiên; không cộng thêm 30%.'
     : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay (+30% damage vũ khí) · không mang Khiên.' : 'Một tay · không có bonus 30%.';
-  element('custom-stats').textContent = `Bộ Binh demo · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
+  element('custom-stats').textContent = `Bộ Binh demo · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
+  element('custom-behavior').textContent = describeCombatBehavior(p.behavior);
 }
 for (const control of [customWeapon, customOffhand]) control.addEventListener('change', previewBuild);
 element('apply-custom').addEventListener('click', () => {
@@ -144,7 +150,16 @@ start.addEventListener('click', () => {
   if (battle.phase === 'ready' && selected.length !== 5) return;
   battle.start(); updateUi();
 });
-setup.addEventListener('click', () => { battle.prepare(); selected = [...battle.loadout]; updateUi(); });
+setup.addEventListener('click', () => {
+  battle.prepare(); selected = [...battle.loadout];
+  if (battle.customSlot) {
+    const { slot, profile } = battle.customSlot;
+    customSlot.value = String(slot); customWeapon.value = profile.weaponId;
+    customOffhand.value = profile.build.equipment.offHand.kind;
+    previewBuild();
+  }
+  updateUi();
+});
 updateUi();
 
 const game = new Phaser.Game({

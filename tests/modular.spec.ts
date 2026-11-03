@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { Battle, DEFAULT_LOADOUT, TEMP_R1D_UNITS } from '../src/game/Battle';
 import type { Side, Unit, UnitKind } from '../src/game/Battle';
-import { ACTIVE_WEAPONS, WEAPON_CATALOG } from '../src/game/WeaponCatalog';
+import { ACTIVE_WEAPONS, WEAPON_CATALOG, compileCombatBehavior, SINGLE_TARGET } from '../src/game/WeaponCatalog';
 import { compileBuild, validateBuild, TEMP_R2A_CORE } from '../src/game/UnitBuild';
 import type { UnitBuild } from '../src/game/UnitBuild';
 
@@ -28,12 +28,16 @@ function arena(...units: Unit[]): Battle {
 }
 const frames = [[.01], [1 / 60], [1 / 30], [.05], [.013, .027, .041], [.2]];
 
-test('R2A catalog: all 43 source rows, original groups/notes, separate proposed taxonomy and exactly 15 active', () => {
+test('R2B catalog: all 43 source rows stay intact; 15 R2A, eight R2B, 20 catalog-only', () => {
   expect(WEAPON_CATALOG).toHaveLength(43);
   expect(WEAPON_CATALOG.map(w => w.sourceIndex)).toEqual(Array.from({ length: 43 }, (_, i) => i + 1));
   expect(new Set(WEAPON_CATALOG.map(w => w.id)).size).toBe(43);
-  expect(ACTIVE_WEAPONS.map(w => w.id)).toEqual(['spear','estoc','ji','stiletto','club','mace','war_hammer','arming_sword','sabre','katana_taichi','battle_axe','axe','bardiche','longsword','greatsword']);
-  expect(WEAPON_CATALOG.filter(w => w.implementationStatus === 'active_r2a').map(w => w.id)).toEqual(ACTIVE_WEAPONS.map(w => w.id));
+  const original = ['spear','estoc','ji','stiletto','club','mace','war_hammer','arming_sword','sabre','katana_taichi','battle_axe','axe','bardiche','longsword','greatsword'];
+  const added = ['pike','trident','morning_star','two_hand_mace','scimitar','falchion','short_sword','nodachi'];
+  expect(WEAPON_CATALOG.filter(w => w.implementationStatus === 'active_r2a').map(w => w.id)).toEqual(original);
+  expect(WEAPON_CATALOG.filter(w => w.implementationStatus === 'active_r2b').map(w => w.id)).toEqual(added);
+  expect(WEAPON_CATALOG.filter(w => w.implementationStatus === 'catalog_only')).toHaveLength(20);
+  expect(ACTIVE_WEAPONS.map(w => w.id)).toEqual(WEAPON_CATALOG.filter(w => w.implementationStatus !== 'catalog_only').map(w => w.id));
   const names = ['Spear – Thương','Lance – Kỵ thương','Pike – Trường thương','Javelin – Lao phóng','Estoc - Liễu kiếm','Ji - Kích','Đinh Ba','Lao móc','Stiletto - Dao đục','Club – Chùy gỗ','Mace – Chùy chiến','Morning Star - Chùy sao','War Hammer – Búa chiến','Pollaxe','Bec de Corbin','Flail- Chùy xích','Côn nhị khúc','Trường côn-Côn','Búa chiến cán dài','Chùy 2 tay','Arming Sword','Sabre – Kiếm cong','Scimitar','Falchion- - Đao','Katana-Taichi','Đoản kiếm','Machete','Rìu chiến- Battle Axe','Rìu','Mâu','Rìu cán dài-Bardiche','Longsword','Greatsword','Đại đao  ','Nodachi / Ōdachi','Cung','Nỏ','Quyền trượng','Đũa phép','Bùa chú/ Vật tổ','Cầu phép','Tinh Linh','Sách phép'];
   expect(WEAPON_CATALOG.map(w => w.sourceName)).toEqual(names);
   const groups: [number[], string | null][] = [
@@ -96,6 +100,164 @@ test('R2A compiler: pure immutable snapshots and component-only grip rounding, n
   expect(TEMP_R2A_CORE.damagePhysical).toBe(0);
 });
 
+test('R2B behavior metadata is closed, immutable and present only on explicit weapons', () => {
+  expect(compileBuild(build('spear')).behavior).toMatchObject({kind:'support_retreat',retreatSpeed:48,kiteDistance:52});
+  expect(compileBuild(build('war_hammer')).behavior).toMatchObject({kind:'splash',damage:10,radius:40});
+  for (const weapon of ACTIVE_WEAPONS.filter(w => !['spear','war_hammer'].includes(w.id))) {
+    expect(compileBuild(build(weapon.id)).behavior).toBe(SINGLE_TARGET);
+  }
+  for (const value of [null,{}, {kind:'splash',damage:10,radius:NaN},
+    {kind:'splash',damage:10,radius:40.001}, {kind:'splash',damage:10,radius:40,bonus:1},
+    {kind:'support_retreat',retreatSpeed:999,kiteDistance:52,supportOffset:30,nearbyMelee:96},
+    Object.create({kind:'single_target'}), {get kind(){return 'single_target';}}]) {
+    expect(() => compileCombatBehavior(value)).toThrow(RangeError);
+  }
+  const mutable = {kind:'splash',damage:10,radius:40};
+  const compiled = compileCombatBehavior(mutable);
+  mutable.radius = 100;
+  expect(compiled).toMatchObject({kind:'splash',damage:10,radius:40});
+  expect(Object.isFrozen(compiled)).toBe(true);
+  expect(Object.isFrozen(compileBuild(build('war_hammer')).behavior)).toBe(true);
+  expect(compileBuild(build('axe')).damage).toBe(34);
+  expect(compileBuild(build('axe',true)).damage).toBe(26);
+});
+
+test('R2B provisional grip and price rules apply to all eight additions without passive bleed', () => {
+  const added = WEAPON_CATALOG.filter(w => w.implementationStatus === 'active_r2b');
+  expect(added).toHaveLength(8);
+  for (const row of added) {
+    const weapon = ACTIVE_WEAPONS.find(w => w.id === row.id)!;
+    const bare = compileBuild(build(row.id));
+    expect(bare.cost).toBe(weapon.cost + TEMP_R2A_CORE.cost);
+    expect(bare.cooldown).toBe(weapon.cooldown);
+    expect(bare.attackRange).toBe(weapon.attackRange);
+    expect(bare.behavior).toBe(SINGLE_TARGET);
+    if (weapon.gripClass === 'one_hand') {
+      const shield = compileBuild(build(row.id,true));
+      expect(shield.shieldHp).toBe(30);
+      expect(shield.cost).toBe(bare.cost+10);
+      expect(shield.damage).toBe(weapon.damagePhysicalWeapon);
+      expect(bare.damage).toBe(Math.round(weapon.damagePhysicalWeapon*(weapon.canTwoHandGrip?1.3:1)));
+    } else {
+      expect(validateBuild(build(row.id,true)).valid).toBe(false);
+      expect(bare.damage).toBe(weapon.damagePhysicalWeapon);
+      expect(bare.gripMode).toBe('fixed_two_hand');
+    }
+  }
+  expect(compileBuild(build('falchion')).damage).toBe(26);
+  expect(compileBuild(build('falchion',true)).damage).toBe(20);
+});
+
+test('R2B custom Spear retreats at 52, attacks at 58, supports an ally and stops at its own gate', () => {
+  for (const side of ['friendly','enemy'] as const) {
+    const d = side === 'friendly' ? 1 : -1;
+    const foeSide = side === 'friendly' ? 'enemy' : 'friendly';
+    const spear = custom('spear',false,side); spear.id=100; spear.x=480;
+    const foe = legacy('shield',foeSide,200,480+d*120); foe.speed=0; foe.attackIn=999;
+    const battle=arena(spear,foe);
+    battle.step(.05); expect((spear.x-480)*d).toBeCloseTo(85*.05,8);
+    spear.x=480; foe.x=480+d*58;
+    battle.step(.05); expect(spear.x).toBe(480);
+    foe.x=480+d*52.001; battle.step(.05); expect(spear.x).toBe(480);
+    foe.x=480+d*52; battle.step(.05); expect((480-spear.x)*d).toBeCloseTo(2.4,8);
+    foe.x=spear.x+d*58; spear.attackIn=0; spear.engaged=true; battle.step(.01);
+    expect(foe.hp).toBe(140);
+    const ally=legacy('shield',side,101,spear.x+d*30); ally.speed=0; ally.attackIn=999;
+    battle.units.push(ally); foe.x=ally.x+d*28; const before=spear.x;
+    battle.step(.05); expect(spear.x).toBeCloseTo(before,8);
+    expect(ally.hp).toBe(150);
+    battle.units=[spear,foe]; spear.x=side==='friendly'?124:836; foe.x=spear.x+d*52;
+    battle.step(.05); expect(spear.x).toBe(side==='friendly'?124:836);
+  }
+});
+
+test('R2B custom Spear contact windup and repeat cooldown survive a brief target handoff', () => {
+  for(const side of ['friendly','enemy'] as const){
+    const d=side==='friendly'?1:-1,opposite=side==='friendly'?'enemy':'friendly';
+    const spear=custom('spear',false,side);spear.id=100;spear.x=480;spear.speed=0;
+    const foe=legacy('shield',opposite,200,480+d*58);foe.speed=0;foe.attackIn=999;
+    const battle=arena(spear,foe);
+    for(let i=0;i<15;i++)battle.step(.01);
+    expect(foe.hp).toBe(150);
+    battle.step(.01);expect(foe.hp).toBe(140);
+    foe.x=480+d*59;battle.step(.01);expect(foe.hp).toBe(140);
+    foe.x=480+d*58;
+    for(let i=0;i<88;i++)battle.step(.01);
+    expect(foe.hp).toBe(140);
+    battle.step(.01);expect(foe.hp).toBe(130);
+  }
+});
+
+test('R2B custom Spear can be caught by a pursuing Gladiator; movement and hits mirror with uneven steps', () => {
+  for (const schedule of [[.01],[.013,.027,.041],[.05]]) {
+    let reference: unknown;
+    for (const side of ['friendly','enemy'] as const) for (const reverse of [false,true]) {
+      const d=side==='friendly'?1:-1;
+      const spear=custom('spear',false,side); spear.id=100; spear.x=480-d*70;
+      const pursuer=legacy('gladiator',side==='friendly'?'enemy':'friendly',200,480+d*70);
+      const battle=arena(...(reverse?[pursuer,spear]:[spear,pursuer]));
+      let retreats=0, fired=false, firstHitX:number|undefined;
+      for(let i=0;i<3000&&spear.hp>0&&pursuer.hp>0;i++){
+        const previous=spear.x, foeHp=pursuer.hp, hp=spear.hp;
+        const dt=schedule[i%schedule.length]; battle.step(dt);
+        const retreat=(previous-spear.x)*d;
+        if(retreat>1e-7){retreats++;expect(retreat).toBeLessThanOrEqual(48*Math.min(dt,.05)+1e-7);if(pursuer.hp<foeHp)fired=true;}
+        if(spear.hp<hp&&firstHitX===undefined)firstHitX=(spear.x-480)*d;
+      }
+      expect(retreats).toBeGreaterThan(0); expect(fired).toBe(true);
+      expect(firstHitX).toBeDefined(); expect(spear.hp).toBeLessThan(60);
+      expect(spear.hp===0||pursuer.hp===0).toBe(true);
+      const result=[spear.hp,pursuer.hp,+battle.elapsed.toFixed(6),+firstHitX!.toFixed(6)];
+      if(!reference) reference=result; else expect(result).toEqual(reference);
+    }
+  }
+});
+
+test('R2B custom Hammer windup, uncapped splash, boundary, dead/ally/base exclusion and barrier mirror', () => {
+  for (const count of [1,2,3,4,7]) for (const side of ['friendly','enemy'] as const) for (const reverse of [false,true]) {
+    const d=side==='friendly'?1:-1, opposite=side==='friendly'?'enemy':'friendly';
+    const hammer=custom('war_hammer',false,side); hammer.id=100; hammer.x=480; hammer.speed=0;
+    const primary=legacy('shield',opposite,200,480+d*28); primary.speed=0; primary.attackIn=999;
+    const secondaries=Array.from({length:count-1},(_,i)=>{const u=legacy('shield',opposite,201+i,primary.x+d*10);u.speed=0;u.attackIn=999;return u;});
+    const edge=legacy('shield',opposite,300,primary.x+d*40); edge.speed=0;edge.attackIn=999;
+    const outside=legacy('shield',opposite,301,primary.x+d*40.001); outside.speed=0;outside.attackIn=999;
+    const dead=legacy('shield',opposite,302,primary.x+d*10);dead.hp=0;
+    const ally=legacy('shield',side,303,480);ally.speed=0;ally.attackIn=999;
+    const units=[hammer,primary,...secondaries,edge,outside,dead,ally];
+    const battle=arena(...(reverse?units.reverse():units));
+    for(let i=0;i<90;i++)battle.step(.01);
+    expect(primary.hp).toBe(150); expect(secondaries.every(u=>u.hp===150)).toBe(true);
+    battle.step(.01);
+    expect(primary.hp).toBe(124);
+    expect(secondaries.every(u=>u.hp===140)).toBe(true);
+    expect([edge.hp,outside.hp,dead.hp,ally.hp]).toEqual([140,150,0,150]);
+    expect([battle.playerHp,battle.enemyHp]).toEqual([240,240]);
+  }
+  const hammer=custom('war_hammer');hammer.id=100;hammer.x=466;hammer.speed=0;
+  const primary=custom('axe',true,'enemy');primary.id=200;primary.x=494;primary.speed=0;primary.attackIn=999;
+  const splash=custom('axe',true,'enemy');splash.id=201;splash.x=504;splash.speed=0;splash.attackIn=999;
+  const battle=arena(hammer,primary,splash);
+  for(let i=0;i<91;i++)battle.step(.01);
+  expect([primary.shieldHp,primary.hp,splash.shieldHp,splash.hp]).toEqual([4,60,20,60]);
+  battle.units=[hammer];hammer.engaged=false;hammer.attackIn=0;hammer.x=822;
+  for(let i=0;i<180;i++)battle.step(.01);
+  expect(battle.enemyHp).toBe(214);
+});
+
+test('R2B custom Hammer simultaneous mutual lethal keeps both splash snapshots across side, ID and order', () => {
+  for (const mirror of [false,true]) for (const swap of [false,true]) for (const reverse of [false,true]) {
+    const left=custom('war_hammer');left.id=swap?200:100;left.x=466;left.hp=26;left.speed=0;left.engaged=true;left.attackIn=0;
+    const right=custom('war_hammer',false,'enemy');right.id=swap?100:200;right.x=494;right.hp=26;right.speed=0;right.engaged=true;right.attackIn=0;
+    const ally=legacy('shield','friendly',301,455);ally.speed=0;ally.attackIn=999;
+    const foe=legacy('shield','enemy',302,505);foe.speed=0;foe.attackIn=999;
+    const units=[left,right,ally,foe];
+    if(mirror) for(const unit of units){unit.x=960-unit.x;unit.side=unit.side==='friendly'?'enemy':'friendly';}
+    const battle=arena(...(reverse?units.reverse():units));battle.step(.01);
+    expect([left.hp,right.hp,ally.hp,foe.hp]).toEqual([0,0,140,140]);
+    expect([battle.playerHp,battle.enemyHp]).toEqual([240,240]);
+  }
+});
+
 test('R2A slots: exactly one custom replacement, same paid profile on both sides, CD/funds/gates/restart/setup', () => {
   const b = new Battle(); b.setCustomBuild(2, build('axe', true)); b.setCustomBuild(0, build('axe', true));
   expect(b.customSlot?.slot).toBe(0); expect(b.getSlotProfile(2)).toEqual(TEMP_R1D_UNITS.shield);
@@ -135,7 +297,7 @@ test('R2A barrier: absorbs before body, spills over, stays broken; primary and u
   }
 });
 
-test('R2A combat: real axe hit threshold and unchanged interval, fixed greatsword and no inherited hammer AOE', async () => {
+test('R2B combat: real axe hit threshold, fixed greatsword and explicit custom hammer AOE', async () => {
   const rows = [];
   for (const [weapon, shield] of [['axe', true], ['axe', false], ['greatsword', false]] as const) {
     const a = custom(weapon, shield); a.id = 100; a.x = 466;
@@ -151,7 +313,7 @@ test('R2A combat: real axe hit threshold and unchanged interval, fixed greatswor
   for (const u of targets) { u.speed = 0; u.attackIn = 999; }
   const b = arena(hammer, ...targets);
   while (b.elapsed < 1) b.step(.01);
-  expect(targets.map(u => u.hp)).toEqual([34, 60]);
+  expect(targets.map(u => u.hp)).toEqual([34, 50]);
   await test.info().attach('axe-shield-two-hand-greatsword-hits', { body: JSON.stringify(rows, null, 2), contentType: 'application/json' });
 });
 
@@ -176,6 +338,30 @@ test('R2A comparison: axe shield / axe two-hand / greatsword real duels mirror a
     }
   }
   await test.info().attach('three-build-duels', { body: JSON.stringify(rows,null,2), contentType:'application/json' });
+});
+
+test('R2B representative new-weapon pairwise duels mirror across side, ID, array and uneven delta', async () => {
+  const pairs = [['pike','spear'],['trident','ji'],['morning_star','mace'],['scimitar','sabre'],
+    ['falchion','axe'],['short_sword','stiletto'],['two_hand_mace','greatsword'],['nodachi','longsword']] as const;
+  const rows=[];
+  for(const [first,second] of pairs)for(const schedule of [[.01],[.013,.027,.041]]){
+    let reference:unknown;
+    for(const mirror of [false,true])for(const swap of [false,true])for(const reverse of [false,true]){
+      const a=custom(first);const z=custom(second,false,'enemy');
+      a.id=swap?200:100;z.id=swap?100:200;
+      const distance=Math.min(a.attackRange,z.attackRange);
+      a.x=480-distance/2;z.x=480+distance/2;
+      if(mirror)for(const u of [a,z]){u.x=960-u.x;u.side=u.side==='friendly'?'enemy':'friendly';}
+      const battle=arena(...(reverse?[z,a]:[a,z]));
+      for(let i=0;i<5000&&a.hp>0&&z.hp>0;i++)battle.step(schedule[i%schedule.length]);
+      expect(a.hp===0||z.hp===0).toBe(true);
+      expect([battle.playerHp,battle.enemyHp]).toEqual([240,240]);
+      const result={hp:[a.hp,z.hp],seconds:+battle.elapsed.toFixed(6)};
+      if(!reference){reference=result;rows.push({first,second,schedule,...result});}
+      else expect(result).toEqual(reference);
+    }
+  }
+  await test.info().attach('r2b-pairwise-duels',{body:JSON.stringify(rows,null,2),contentType:'application/json'});
 });
 
 for (const weapon of ACTIVE_WEAPONS) test(`R2A model ${weapon.id}: finite compile, paid mirror summons, simultaneous replies, ID/order/dt symmetry and completed real matches`, async () => {
@@ -331,6 +517,36 @@ test('R2A.1: real browser combat and paid input remain deterministic across host
 
 test.describe('R2A production workshop', () => {
   test.use({ hasTouch: true });
+  test('R2B mobile grouped select, special previews, draft/apply/replay/setup and keyboard/touch', async ({ page }) => {
+    const errors=observe(page);await page.setViewportSize({width:390,height:844});await page.goto('./');
+    await page.locator('#workshop summary').focus();await page.keyboard.press('Enter');
+    await expect(page.locator('#custom-weapon optgroup')).toHaveCount(5);
+    await expect(page.locator('#custom-weapon option')).toHaveCount(23);
+    await page.locator('#custom-weapon').selectOption('spear');
+    await expect(page.locator('#custom-behavior')).toContainText('Tự lùi 48/s');
+    await expect(page.locator('#custom-stats')).toContainText('Tầm 58');
+    await page.locator('#custom-weapon').selectOption('war_hammer');
+    await expect(page.locator('#custom-behavior')).toContainText('AOE +10 trong 40');
+    await page.locator('#custom-weapon').selectOption('falchion');
+    await expect(page.locator('#custom-behavior')).toContainText('Đơn mục tiêu');
+    await expect(page.locator('#custom-stats')).toContainText('Damage mỗi hit 26');
+    await page.locator('#custom-offhand').selectOption('shield');
+    await expect(page.locator('#custom-stats')).toContainText('Damage mỗi hit 20');
+    await page.locator('#custom-slot').selectOption('3');
+    await expect(page.locator('#player-slots .slot').nth(3)).toHaveAttribute('data-unit-type','gladiator');
+    await page.locator('#apply-custom').tap();
+    for(const side of ['player','bot']) await expect(page.locator(`#${side}-slots .slot`).nth(3)).toHaveAttribute('data-unit-type','custom:falchion:30');
+    await page.locator('#start').tap();
+    await expect(page.locator('#custom-weapon')).toBeDisabled();
+    await page.locator('#start').tap();
+    await expect(page.locator('#player-slots .slot').nth(3)).toHaveAttribute('data-unit-type','custom:falchion:30');
+    await page.locator('#setup').tap();
+    await expect(page.locator('#custom-weapon')).toHaveValue('falchion');
+    await expect(page.locator('#custom-offhand')).toHaveValue('shield');
+    await expect(page.locator('#custom-slot')).toHaveValue('3');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  });
   test('desktop: a greatsword custom formation beats the live Bot and preserves its build on replay', async ({ page }) => {
     test.setTimeout(100000);
     const errors = observe(page); await page.goto('./');
@@ -358,7 +574,7 @@ test.describe('R2A production workshop', () => {
     const errors = observe(page); await page.goto('./');
     await expect(page.locator('#workshop')).not.toHaveAttribute('open');
     await page.locator('#workshop summary').click();
-    await expect(page.locator('#custom-weapon option')).toHaveCount(15);
+    await expect(page.locator('#custom-weapon option')).toHaveCount(23);
     const slot = i % 5;
     await page.locator('#custom-slot').selectOption(String(slot));
     await page.locator('#custom-weapon').selectOption(weapon.id);

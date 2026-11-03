@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R2A LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
+        <span class="build-tag">R2B LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -26,8 +26,8 @@
         <div id="armory-choices" class="armory-choices" role="group" aria-label="Chọn năm loại quân khác nhau"></div>
         <p id="selection-count" role="status">Đã chọn 5/5</p>
         <details id="workshop" class="workshop">
-          <summary>Xưởng thử nghiệm R2A</summary>
-          <p class="workshop-help">Lắp Bộ Binh demo vào một slot; Bot dùng cùng bản lắp ráp. 15 vũ khí cận chiến thử nghiệm, 28 món còn lại chỉ có trong danh mục thiết kế.</p>
+          <summary>Xưởng thử nghiệm R2B</summary>
+          <p class="workshop-help">Lắp Bộ Binh demo vào một slot; Bot dùng cùng bản lắp ráp. 23 vũ khí cận chiến theo năm nhóm, 20 món còn lại chỉ có trong danh mục thiết kế.</p>
           <fieldset id="workshop-controls">
             <legend>Bộ Binh demo · trang bị cho trận này</legend>
             <div class="workshop-fields">
@@ -39,7 +39,8 @@
             <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Dùng bản lắp ráp</button><button id="clear-custom" class="setup-button" type="button">Trở về năm preset</button></div>
           </fieldset>
           <p id="custom-stats" class="custom-stats" aria-live="polite"></p>
-          <p class="workshop-help">TEMP_R2A: số liệu và cờ cầm hai tay đang chờ Owner đánh giá. Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Mô tả đặc biệt của vũ khí chưa thành passive.</p>
+          <p id="custom-behavior" class="custom-stats" aria-live="polite"></p>
+          <p class="workshop-help">TEMP_R2A / TEMP_R2B: số liệu thử nghiệm đang chờ đánh giá cân bằng. Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Chỉ Thương tự lùi và Búa chiến có AOE; ghi chú nguồn khác chưa thành hiệu ứng.</p>
           <p id="custom-status" role="status">Chưa dùng bản lắp ráp · giữ gameplay R1D.</p>
         </details>
       </section>
