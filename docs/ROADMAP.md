@@ -1,26 +1,27 @@
 # Roadmap LaneForge — Modular Unit + Weapon System
 
-## Trạng thái hiện tại và định hướng R2A
+## Trạng thái hiện tại — R2C local
 
-Định hướng Owner ghi ngày 02/11/2026; trạng thái local cập nhật ngày 03/11/2026: người chơi tự lắp quân bằng nhân vật lõi, vũ khí hai tay, giáp, phụ kiện và thẻ hỗ trợ, rồi thử/sửa build trong trận một lane. Tên LaneForge trong code giữ nguyên; Legend Army là tên tài liệu thiết kế nguồn. Các bước tương lai dưới đây là **PROPOSED**, chưa phải tính năng đã hoàn thành hoặc cam kết phát hành.
+Định hướng Owner ghi ngày 02/11/2026; trạng thái local cập nhật ngày 04/11/2026: người chơi tự lắp quân bằng nhân vật lõi và vũ khí, rồi thử/sửa đội hình trong trận một lane. Giáp, phụ kiện và thẻ hỗ trợ là hướng tương lai, ngoài R2C. Tên LaneForge trong code giữ nguyên; Legend Army là tên tài liệu thiết kế nguồn. Các bước tương lai dưới đây là **PROPOSED**, chưa phải tính năng đã hoàn thành hoặc cam kết phát hành.
 
 | Mốc | Trạng thái thực tế |
 | --- | --- |
 | R0B / R1A / R1B / R1C | Đã phát hành và kiểm chứng theo lịch sử bên dưới: `19aa892` / `1086c8a` / `add1f73` / `da7d13c` |
 | R1D revision | Đã được Owner duyệt và phát hành tại `b4ec9fc1d05dee40244e38e281c20de04776e7bb`; baseline GitHub khi fresh-check R2A |
-| R1E Combat Timing Audit | Kết quả audit local: 61 tests, gồm 14 regression bổ sung. Hai file `docs/GAME_DESIGN.md`, `tests/smoke.spec.ts` chưa commit và được bảo toàn trong R2A; không thay gameplay R1D |
+| R1E Combat Timing Audit | Kết quả audit lúc triển khai: 61 tests, gồm 14 regression bổ sung; được bảo toàn và đưa vào bản phát hành R2A, không thay gameplay R1D |
 | R2A + R2A.1 Modular Weapon Foundation | Đã phát hành tại baseline `19e25d9834c5f4de4c1b3008345b2de903fd7711`; 104/104 tests PASS khi phát hành. Bản R2A có 15 vũ khí active |
-| R2B Weapon Identity + Arsenal Expansion | **LOCAL / TEMP_R2B, chờ Owner duyệt**: Giáo custom hỗ trợ lùi, Búa custom AOE, thêm tám vũ khí; tổng 23 active / 43 catalogue |
+| R2B Weapon Identity + Arsenal Expansion | Đã phát hành tại `d6d012f1868cdc8ff4ec50ddec10c7c8cce79090`: Giáo custom hỗ trợ lùi, Búa custom AOE, thêm tám vũ khí; tổng 23 active / 43 catalogue |
+| R2C Five-Slot Modular Loadouts | **LOCAL, chờ Owner duyệt**: 0–5 custom độc lập; trộn preset/custom, cho phép trùng build; một editor với tổng quan năm slot, trả từng slot về preset; chưa phát hành |
 
-Mặc định vẫn là sáu preset R1D, chọn năm slot, Player/Bot cùng kinh tế 100 Vàng / +5 mỗi giây / tối đa 125, CD riêng, nhà 240 HP, không xuyên phe, không Hòa. Xưởng R2A chỉ thay một slot nếu người chơi chủ động dùng; Bot nhận cùng build và trả cùng Vàng/CD. Không nerf/buff preset để phù hợp hướng mới.
+Mặc định vẫn là sáu preset R1D, chọn năm loại khác nhau làm đội hình nền. Xưởng R2C cho áp dụng độc lập tối đa năm build, kể cả năm build giống nhau; Bot nhận đúng build từng slot và trả cùng Vàng/CD. Player/Bot cùng kinh tế 100 Vàng / +5 mỗi giây / tối đa 125, CD riêng, nhà 240 HP, không xuyên phe, không Hòa. Không nerf/buff preset hoặc số TEMP_R2A/TEMP_R2B. Chơi lại giữ năm build; Về chuẩn bị cho sửa; reload trở về preset. Xem [quyết định R2C](DECISIONS.md#r2c--five-slot-modular-loadouts-local-04112026).
 
 ## Các bước Modular đề xuất và cổng xét duyệt
 
 | Mốc | Phạm vi định hướng | Điều kiện xem xét duyệt |
 | --- | --- | --- |
 | R2A | TypeScript UnitBuild/validator/compiler; một lõi demo; catalogue đủ 43 vũ khí, giữ phân loại nguồn riêng với taxonomy đề xuất; 15 melee dùng nhóm hành vi chung; tay phụ Trống/Khiên barrier mẫu; một slot Xưởng | Bonus thử +30% chỉ trên damage vật lý riêng của vũ khí 1H đủ điều kiện khi tay phụ trống, không nhân lại vũ khí vốn 2H; build sai bị từ chối trước chi tiêu; preset R1D nguyên vẹn; full R1E + regression R2A, build/browser/mobile/security/audit; manifest Owner duyệt riêng |
-| R2B — LOCAL / PROPOSED | Bản sắc Giáo/Búa custom, mở thêm tám melee bằng năm họ hình tạm hiện có | 23 active, metadata hành vi đóng, UI desktop/mobile, full regression/build/security/audit; Owner duyệt manifest trước phát hành |
-| R2C — PROPOSED | Xưởng năm custom loadout cùng preset, UX mobile | Tạo/sửa/copy năm build, preset chơi ngay; giao diện dễ hiểu trên điện thoại |
+| R2B — PUBLISHED | Bản sắc Giáo/Búa custom, mở thêm tám melee bằng năm họ hình tạm hiện có | Đã phát hành tại baseline R2B bên trên; chỉ số vẫn là TEMP, không có nghĩa đã khóa cân bằng |
+| R2C — LOCAL / REVIEW | Xưởng năm custom loadout độc lập cùng preset, UX mobile | Build/full regression 1 và 2 workers, đối xứng, browser desktop/390×844, Security Gate/audit; manifest và SHA-256 để Owner duyệt riêng. Có thể lắp các bản giống nhau; chưa thêm nút copy hay lưu dữ liệu |
 | R2D — PROPOSED | Giáp/phụ kiện; mở rộng luật Khiên, DEF, KG/STR | Owner chốt định nghĩa/tương tác; quy tắc nhất quán, kiểm thử được. Barrier mẫu R2A không có nghĩa hệ thống này đã hoàn thành |
 | R3 — PROPOSED | Thẻ hỗ trợ, nội tại/modifier/xung đột | Hợp đồng hiệu ứng và validator tổ hợp rõ ràng; không mặc nhiên triển khai toàn bộ 72 thẻ |
 | R4 — PROPOSED | PvE, onboarding và cân bằng; Dễ/Thường | Thử người mới, nhiều chiến thuật khả thi và nhiều đường thắng |
@@ -30,7 +31,7 @@ Mặc định vẫn là sáu preset R1D, chọn năm slot, Player/Bot cùng kinh
 
 43 records là **dữ liệu phân loại**, 15 active là **phạm vi gameplay R2A**, còn passive nguồn là **tài liệu chưa thực thi**. Các số `TEMP_R2A`, cờ cầm hai tay và barrier mẫu là thử nghiệm để Owner xét, không phải số cân bằng chính thức của tác giả nguồn. Dual wield, toàn bộ 72 thẻ, DEF/MDEF/STR-KG, nón/giáp/phụ kiện nâng cao, phép/cung/nỏ/thú cưỡi, tài khoản/backend/PvP/app điện thoại nằm ngoài R2A.
 
-R2A đã phát hành; [hồ sơ R2A/R2A.1](R2A_REVIEW.md) lưu bằng chứng trước phát hành. R2B đang làm local: **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY**. Bản public chưa nhận thay đổi R2B.
+R2A và R2B đã phát hành; [hồ sơ R2A/R2A.1](R2A_REVIEW.md) lưu bằng chứng lịch sử, bao gồm caveat replay OPEN. R2C chỉ làm local: **NO STAGE / NO COMMIT / NO PUSH / NO DEPLOY**. Bản public vẫn ở R2B.
 
 ## Hồ sơ roadmap trước R2A — giữ lại để truy xuất
 

@@ -27,6 +27,8 @@ function arena(...units: Unit[]): Battle {
   const b = new Battle(); b.start(); b.units = units; b.cooldowns.enemy.fill(9999); return b;
 }
 const frames = [[.01], [1 / 60], [1 / 30], [.05], [.013, .027, .041], [.2]];
+const effectiveDeck = (b: Battle) => Array.from({ length: 5 }, (_, slot) => b.getSlotProfile(slot));
+const state = (b: Battle) => JSON.stringify({ battle: b, deck: effectiveDeck(b), customs: b.loadout.map((_, slot) => b.getCustomProfile(slot)) });
 
 test('R2B catalog: all 43 source rows stay intact; 15 R2A, eight R2B, 20 catalog-only', () => {
   expect(WEAPON_CATALOG).toHaveLength(43);
@@ -70,17 +72,17 @@ test('R2A validator: malformed/unsupported builds and slots are rejected before 
     build('greatsword', true), build('spear', true), build('ji', true), build('longsword', true), build('bardiche', true),
   ];
   const b = new Battle(); expect(b.setCustomBuild(2, build())).toBe(true);
-  const before = JSON.stringify(b);
+  const before = state(b);
   for (const item of invalid) {
     const validation = validateBuild(item);
     expect(validation.valid).toBe(false); expect(validation.errors.length).toBeGreaterThan(0);
     expect(() => compileBuild(item as UnitBuild)).toThrow(RangeError);
-    expect(b.setCustomBuild(0, item)).toBe(false); expect(JSON.stringify(b)).toBe(before);
+    expect(b.setCustomBuild(0, item)).toBe(false); expect(state(b)).toBe(before);
   }
-  for (const slot of [-1, 5, .5, NaN, Infinity]) { expect(b.setCustomBuild(slot, build())).toBe(false); expect(JSON.stringify(b)).toBe(before); }
-  b.start(); const running = JSON.stringify(b);
-  expect(b.setCustomBuild(1, build('club'))).toBe(false); expect(b.clearCustomBuild()).toBe(false);
-  expect(JSON.stringify(b)).toBe(running);
+  for (const slot of [-1, 5, .5, NaN, Infinity]) { expect(b.setCustomBuild(slot, build())).toBe(false); expect(state(b)).toBe(before); }
+  b.start(); const running = state(b);
+  expect(b.setCustomBuild(1, build('club'))).toBe(false); expect(b.clearCustomBuild(2)).toBe(false);
+  expect(state(b)).toBe(running);
 });
 
 test('R2A compiler: pure immutable snapshots and component-only grip rounding, no legacy mutation', () => {
@@ -258,9 +260,9 @@ test('R2B custom Hammer simultaneous mutual lethal keeps both splash snapshots a
   }
 });
 
-test('R2A slots: exactly one custom replacement, same paid profile on both sides, CD/funds/gates/restart/setup', () => {
+test('R2C slots: independent replacements, same paid profile on both sides, CD/funds/gates/restart/setup', () => {
   const b = new Battle(); b.setCustomBuild(2, build('axe', true)); b.setCustomBuild(0, build('axe', true));
-  expect(b.customSlot?.slot).toBe(0); expect(b.getSlotProfile(2)).toEqual(TEMP_R1D_UNITS.shield);
+  expect(b.getCustomProfile(0)?.weaponId).toBe('axe'); expect(b.getCustomProfile(2)?.weaponId).toBe('axe');
   expect(b.loadout).toEqual(DEFAULT_LOADOUT); b.start();
   for (const side of ['friendly', 'enemy'] as const) {
     expect(b.summon(side, 0)).toBe(true); expect(b.gold[side]).toBe(55); expect(b.cooldowns[side][0]).toBe(3.2);
@@ -270,13 +272,243 @@ test('R2A slots: exactly one custom replacement, same paid profile on both sides
     expect(b.summon(side, 0)).toBe(false); expect(JSON.stringify(b)).toBe(low);
   }
   expect(b.units[0].profile).toEqual(b.units[1].profile);
-  b.start(); expect(b.customSlot?.profile.weaponId).toBe('axe'); expect(b.units).toEqual([]);
+  b.start(); expect(b.getCustomProfile(0)?.weaponId).toBe('axe'); expect(b.units).toEqual([]);
   b.units = [legacy('sword', 'enemy', 100, 123)];
   expect(b.summon('friendly', 0)).toBe(false); expect(b.gold.friendly).toBe(100);
   b.prepare(); expect(b.setCustomBuild(4, build('greatsword'))).toBe(true);
-  expect(b.getSlotProfile(0)).toEqual(TEMP_R1D_UNITS.sword);
-  expect(b.clearCustomBuild()).toBe(true); expect(b.customSlot).toBeUndefined();
+  expect(b.getCustomProfile(0)?.weaponId).toBe('axe');
+  expect(b.clearCustomBuild(4)).toBe(true); expect(b.getCustomProfile(4)).toBeUndefined();
+  expect(b.getCustomProfile(0)?.weaponId).toBe('axe'); expect(b.getCustomProfile(2)?.weaponId).toBe('axe');
+  expect(b.clearCustomBuild(0)).toBe(true); expect(b.clearCustomBuild(2)).toBe(true);
   for (let i = 0; i < 5; i++) expect(b.getSlotProfile(i)).toEqual(TEMP_R1D_UNITS[DEFAULT_LOADOUT[i]]);
+});
+
+for (const count of [0, 1, 2, 3, 4, 5]) test(`R2C model: ${count} identical custom builds coexist with presets and isolated set/clear`, () => {
+  const b = new Battle();
+  for (let slot = 0; slot < count; slot++) expect(b.setCustomBuild(slot, build())).toBe(true);
+  expect(b.loadout).toEqual(DEFAULT_LOADOUT);
+  expect(effectiveDeck(b)).toHaveLength(5);
+  for (let slot = 0; slot < 5; slot++) {
+    expect(b.getSlotProfile(slot)).toEqual(slot < count ? compileBuild(build()) : TEMP_R1D_UNITS[DEFAULT_LOADOUT[slot]]);
+    const others = effectiveDeck(b).map(p => JSON.stringify(p));
+    expect(b.setCustomBuild(slot, build('axe', true))).toBe(true);
+    expect(b.getCustomProfile(slot)).toMatchObject({ damage: 26, cost: 45, shieldHp: 30 });
+    for (let i = 0; i < 5; i++) if (i !== slot) expect(JSON.stringify(b.getSlotProfile(i))).toBe(others[i]);
+    expect(b.clearCustomBuild(slot)).toBe(true);
+    expect(b.getSlotProfile(slot)).toBe(TEMP_R1D_UNITS[DEFAULT_LOADOUT[slot]]);
+    for (let i = 0; i < 5; i++) if (i !== slot) expect(JSON.stringify(b.getSlotProfile(i))).toBe(others[i]);
+    if (slot < count) b.setCustomBuild(slot, build());
+  }
+  b.start();
+  for (let slot = 0; slot < 5; slot++) {
+    b.start();
+    for (const side of ['friendly', 'enemy'] as const) {
+      const p = b.getSlotProfile(slot);
+      expect(b.summon(side, slot)).toBe(true);
+      expect(b.gold[side]).toBe(100 - p.cost);
+      expect(b.units.at(-1)).toMatchObject({ side, damage: p.damage, hp: p.hp, attackInterval: p.attackInterval });
+      expect(b.units.at(-1)?.profile).toBe(b.getCustomProfile(slot));
+      expect(b.cooldowns[side]).toEqual(Array.from({ length: 5 }, (_, i) => i === slot ? p.cooldown : 0));
+    }
+  }
+});
+
+const fiveBuilds = [build('spear'), build('war_hammer'), build('axe', true), build('axe'), build('greatsword')];
+function assembled(builds: readonly (UnitBuild | undefined)[] = fiveBuilds): Battle {
+  const b = new Battle();
+  builds.forEach((draft, slot) => { if (draft) expect(b.setCustomBuild(slot, draft)).toBe(true); });
+  return b;
+}
+
+test('R2C model: atomic validation, immutable drafts/spawns, selected presets and reset of five builds', () => {
+  const b = assembled();
+  const draft = { coreId: 'infantry_demo', equipment: { mainHand: 'axe', offHand: { kind: 'shield', shieldId: 'demo_shield' } } };
+  expect(b.setCustomBuild(2, draft)).toBe(true);
+  const profiles = effectiveDeck(b), bytes = JSON.stringify(profiles);
+  draft.equipment.mainHand = 'club'; draft.equipment.offHand.shieldId = 'invalid';
+  expect(JSON.stringify(effectiveDeck(b))).toBe(bytes);
+  for (const p of profiles) {
+    expect(Object.isFrozen(p)).toBe(true);
+    const custom = p as ReturnType<typeof compileBuild>;
+    expect(Object.isFrozen(custom.build.equipment.offHand)).toBe(true);
+    expect(() => Object.assign(p, { damage: 999 })).toThrow(TypeError);
+  }
+  const before = state(b);
+  for (const slot of [-1, 5, .5, NaN, Infinity, '0', undefined, null]) {
+    expect(b.setCustomBuild(slot as number, build())).toBe(false);
+    expect(b.clearCustomBuild(slot as number)).toBe(false);
+    expect(b.getCustomProfile(slot as number)).toBeUndefined();
+    expect(() => b.getSlotProfile(slot as number)).toThrow(RangeError);
+    expect(state(b)).toBe(before);
+  }
+  for (let slot = 0; slot < 5; slot++) {
+    expect(b.setCustomBuild(slot, build('greatsword', true))).toBe(false);
+    expect(b.setCustomBuild(slot, { ...build(), damage: 999 })).toBe(false);
+    expect(state(b)).toBe(before);
+  }
+  expect(b.setLoadout(['sword', 'axe', 'shield', 'spear', 'hammer'])).toBe(true);
+  expect(JSON.stringify(effectiveDeck(b))).toBe(bytes);
+  const underlying = [...b.loadout];
+  expect(b.setLoadout(['axe', 'axe', 'axe', 'axe', 'axe'])).toBe(false);
+  b.start(); expect(b.summon('friendly', 2)).toBe(true); const spawned = b.units[0];
+  for (const phase of ['running', 'won', 'lost'] as const) {
+    b.phase = phase; const locked = state(b);
+    for (let slot = 0; slot < 5; slot++) {
+      expect(b.setCustomBuild(slot, build('club'))).toBe(false);
+      expect(b.clearCustomBuild(slot)).toBe(false);
+      expect(b.setLoadout(DEFAULT_LOADOUT)).toBe(false);
+      expect(state(b)).toBe(locked);
+    }
+  }
+  b.start();
+  expect(effectiveDeck(b)).toEqual(profiles); expect(b.loadout).toEqual(underlying);
+  expect([b.playerHp, b.enemyHp, b.elapsed, b.hits]).toEqual([240, 240, 0, 0]);
+  expect(b.gold).toEqual({ friendly: 100, enemy: 100 }); expect(b.units).toEqual([]);
+  expect(b.cooldowns).toEqual({ friendly: [0,0,0,0,0], enemy: [0,0,0,0,0] }); expect(b.botChoice).toBeUndefined();
+  expect(b.summon('friendly', 2)).toBe(true); expect(b.units[0].id).toBe(0);
+  b.prepare(); expect(b.phase).toBe('ready'); expect(effectiveDeck(b)).toEqual(profiles);
+  expect(b.setCustomBuild(2, build('club'))).toBe(true);
+  expect(spawned.profile).toBe(profiles[2]); expect(spawned).toMatchObject({ damage: 26, shieldHp: 30 });
+  expect(b.clearCustomBuild(4)).toBe(true); expect(b.getSlotProfile(4)).toBe(TEMP_R1D_UNITS.hammer);
+  for (const slot of [0, 1, 3]) expect(b.getSlotProfile(slot)).toBe(profiles[slot]);
+});
+
+test('R2C model: all five profiles retain exact behavior and independent paid cooldowns on both sides', () => {
+  const b = assembled();
+  expect(effectiveDeck(b)).toEqual(fiveBuilds.map(compileBuild));
+  expect(b.getCustomProfile(0)?.behavior).toMatchObject({ kind: 'support_retreat', retreatSpeed: 48, kiteDistance: 52 });
+  expect(b.getCustomProfile(1)?.behavior).toEqual({ kind: 'splash', damage: 10, radius: 40 });
+  expect(b.getCustomProfile(2)).toMatchObject({ damage: 26, cost: 45, shieldHp: 30 });
+  expect(b.getCustomProfile(3)).toMatchObject({ damage: 34, cost: 35, shieldHp: 0, weaponBonus: 8 });
+  expect(b.getCustomProfile(4)).toMatchObject({ damage: 34, weaponBonus: 0, gripMode: 'fixed_two_hand' });
+  for (const side of ['friendly', 'enemy'] as const) for (let slot = 0; slot < 5; slot++) {
+    b.start(); const p = b.getSlotProfile(slot), opposite = side === 'friendly' ? 'enemy' : 'friendly';
+    expect(b.summon(side, slot)).toBe(true);
+    const unit = b.units[0]; expect(unit).toMatchObject({ sourceSlot: slot, side, damage: p.damage, attackRange: p.attackRange });
+    expect(unit.profile).toBe(p); expect(b.gold[side]).toBe(100 - p.cost);
+    expect(b.cooldowns[side]).toEqual(Array.from({ length: 5 }, (_, i) => i === slot ? p.cooldown : 0));
+    expect(b.cooldowns[opposite]).toEqual([0,0,0,0,0]); expect(b.gold[opposite]).toBe(100);
+    let previous = state(b); expect(b.summon(side, slot)).toBe(false); expect(state(b)).toBe(previous);
+    b.cooldowns[side][slot] = 0; b.gold[side] = p.cost - 1;
+    previous = state(b); expect(b.summon(side, slot)).toBe(false); expect(state(b)).toBe(previous);
+    b.gold[side] = 100; b.units = [legacy('sword', opposite, 100, side === 'friendly' ? 123 : 837)];
+    previous = state(b); expect(b.summon(side, slot)).toBe(false); expect(state(b)).toBe(previous);
+    for (const bad of [-1, 5, .5, NaN]) { expect(b.summon(side, bad)).toBe(false); expect(state(b)).toBe(previous); }
+  }
+  b.start(); expect(b.summon('friendly', 2)).toBe(true); expect(b.summon('friendly', 3)).toBe(true);
+  expect(b.gold.friendly).toBe(20); expect(b.cooldowns.friendly).toEqual([0,0,3.2,3.2,0]);
+  expect(b.units.map(u => [u.sourceSlot, u.damage, u.shieldHp])).toEqual([[2,26,30],[3,34,0]]);
+});
+
+test('R2C Bot: same-weapon builds and identical builds are counted by source slot, at unchanged price/CD', () => {
+  for (const shield of [false, true]) {
+    const b = assembled(Array.from({ length: 5 }, (_, slot) => build('axe', shield && slot === 1)));
+    b.start(); expect(b.summon('enemy', 0)).toBe(true);
+    const original = b.units[0]; original.x = 800; original.speed = 0;
+    b.units.push({ ...original, id: 100 }, { ...original, id: 101 });
+    const foe = legacy('shield', 'friendly', 102, 600); foe.speed = 0; b.units.push(foe);
+    const gold = b.gold.enemy;
+    for (let i = 0; i < 15; i++) b.step(.05);
+    expect(b.botChoice?.slot).toBe(1);
+    const p = b.getCustomProfile(1)!;
+    expect(b.gold.enemy).toBeCloseTo(gold + 5 * .75 - p.cost, 8);
+    expect(b.cooldowns.enemy[1]).toBe(p.cooldown);
+    expect(b.units.at(-1)).toMatchObject({ sourceSlot: 1, profile: p, shieldHp: p.shieldHp, damage: p.damage });
+    expect(b.botChoice?.reason).toBe('Cận chiến thử nghiệm');
+  }
+});
+
+test('R2C teams: five-slot paid formations mirror side, paired IDs, insertion order and six dt schedules', async () => {
+  const rows = [];
+  for (const schedule of frames) {
+    let reference: unknown;
+    for (const mirror of [false, true]) for (const swap of [false, true]) for (const reverse of [false, true]) {
+      const b = assembled(); b.start();
+      // Only turn off autonomous decisions: paired inputs still use the real funds/CD/spawn gates.
+      (b as unknown as { botDecisionIn: number }).botDecisionIn = Infinity;
+      let nextSlot = 0;
+      for (let frame = 0; b.elapsed < 40 && b.phase === 'running'; frame++) {
+        const a: Side = mirror ? 'enemy' : 'friendly', z: Side = mirror ? 'friendly' : 'enemy';
+        if (nextSlot < 5 && b.canSummon(a, nextSlot) && b.canSummon(z, nextSlot)) {
+          expect(b.summon(a, nextSlot)).toBe(true); const first = b.units.at(-1)!;
+          expect(b.summon(z, nextSlot)).toBe(true); const second = b.units.at(-1)!;
+          first.id = 100 + nextSlot * 2 + (swap ? 1 : 0);
+          second.id = 100 + nextSlot * 2 + (swap ? 0 : 1);
+          nextSlot++;
+        }
+        if (reverse) b.units.reverse();
+        b.step(schedule[frame % schedule.length]);
+        const friendly = b.units.filter(u => u.side === 'friendly'), enemy = b.units.filter(u => u.side === 'enemy');
+        assert.ok(Math.max(...friendly.map(u => u.x)) <= Math.min(...enemy.map(u => u.x)) + 1e-7);
+        for (const u of friendly) {
+          const paired = enemy.find(v => v.sourceSlot === u.sourceSlot);
+          assert.ok(paired); assert.equal(u.hp, paired.hp); assert.equal(u.shieldHp, paired.shieldHp);
+          assert.ok(Math.abs(u.x + paired.x - 960) < 1e-7);
+        }
+        assert.equal(friendly.length, enemy.length);
+      }
+      expect(nextSlot).toBe(5); expect([b.playerHp, b.enemyHp]).toEqual([240, 240]);
+      const result = [b.phase, +b.elapsed.toFixed(6), b.units.map(u => [u.sourceSlot,u.hp,u.shieldHp]).sort()];
+      if (!reference) { reference = result; rows.push({ schedule, result }); } else expect(result).toEqual(reference);
+    }
+  }
+  await test.info().attach('r2c-five-slot-mirrors', { body: JSON.stringify(rows), contentType: 'application/json' });
+});
+
+test('R2C playtest: mixed/all-custom/identical teams complete legal battles with audited Bot spending', async () => {
+  const decks = [fiveBuilds, [build('spear'), build('war_hammer'), undefined, build('axe', true), undefined],
+    Array.from({ length: 5 }, () => build('axe')), Array.from({ length: 5 }, () => build('short_sword'))];
+  const rows = [];
+  for (const [deck, builds] of decks.entries()) for (const strategy of ['idle', 'cycle'] as const) for (const schedule of [[.02], [.013,.027,.041]]) {
+    const b = assembled(builds); b.start(); let cursor = 0, next = 0, paid = 0;
+    const botSlots = new Set<number>();
+    for (let frame = 0; b.phase === 'running' && b.elapsed < 360; frame++) {
+      if (strategy === 'cycle' && b.elapsed >= next) {
+        if (b.summon('friendly', [2,0,1,3,4][cursor % 5])) cursor++;
+        next += .1;
+      }
+      const gold = b.gold.enemy, choice = b.botChoice, dt = schedule[frame % schedule.length];
+      b.step(dt);
+      let expected = Math.min(125, gold + 5 * dt);
+      if (b.botChoice !== choice) {
+        const slot = b.botChoice!.slot, p = b.getSlotProfile(slot), unit = b.units.at(-1)!;
+        expected -= p.cost; paid += p.cost; botSlots.add(slot);
+        assert.equal(unit.profile, b.getCustomProfile(slot)); assert.equal(unit.damage, p.damage);
+        assert.equal(b.cooldowns.enemy[slot], p.cooldown);
+        if (unit.profile) assert.equal(unit.sourceSlot, slot);
+      }
+      assert.ok(Math.abs(b.gold.enemy - expected) < 1e-7);
+      assert.ok(b.gold.friendly >= 0 && b.gold.friendly <= 125 && b.gold.enemy >= 0);
+      assert.equal(b.cooldowns.friendly.length, 5); assert.equal(b.cooldowns.enemy.length, 5);
+    }
+    expect(['won','lost']).toContain(b.phase); expect(paid).toBeGreaterThan(0);
+    expect(b.playerHp === 0 && b.enemyHp === 0).toBe(false);
+    rows.push({ deck, strategy, schedule, outcome: b.phase, seconds: +b.elapsed.toFixed(2), hp: [b.playerHp,b.enemyHp], playerPurchases: cursor, botPaid: paid, botSlots: [...botSlots] });
+  }
+  expect(rows.some(row => row.outcome === 'won')).toBe(true); expect(rows.some(row => row.outcome === 'lost')).toBe(true);
+  await test.info().attach('r2c-team-sample-not-win-rates', { body: JSON.stringify(rows, null, 2), contentType: 'application/json' });
+});
+
+test('R2C multiple custom Hammers keep separate windup/repeat and one splash per swing', () => {
+  for (const side of ['friendly', 'enemy'] as const) for (const reverse of [false, true]) for (const swap of [false, true]) {
+    const d = side === 'friendly' ? 1 : -1, opposite = side === 'friendly' ? 'enemy' : 'friendly';
+    const b = assembled([build('war_hammer'), build('war_hammer', true)]); b.start();
+    expect(b.summon(side, 0)).toBe(true); expect(b.summon(side, 1)).toBe(true);
+    const [first, second] = b.units;
+    first.id = swap ? 101 : 100; second.id = swap ? 100 : 101;
+    first.x = second.x = 480; first.speed = second.speed = 0;
+    first.engaged = true; first.attackIn = 0; second.engaged = true; second.attackIn = .9;
+    const target = legacy('shield', opposite, 200, 480 + d * 28), splash = legacy('shield', opposite, 201, 480 + d * 40);
+    for (const u of [target, splash]) { u.speed = 0; u.attackIn = 999; }
+    b.units.push(target, splash); if (reverse) b.units.reverse(); b.cooldowns.enemy.fill(9999);
+    b.step(.01); expect([target.hp, splash.hp]).toEqual([124,140]);
+    for (let i = 0; i < 88; i++) b.step(.01);
+    expect([target.hp, splash.hp]).toEqual([124,140]);
+    b.step(.01); expect([target.hp, splash.hp]).toEqual([98,130]);
+    for (let i = 0; i < 90; i++) b.step(.01);
+    expect([target.hp, splash.hp]).toEqual([98,130]);
+    b.step(.01); expect([target.hp, splash.hp]).toEqual([72,120]);
+  }
 });
 
 test('R2A barrier: absorbs before body, spills over, stays broken; primary and uncapped R1D AOE are symmetric', () => {
@@ -517,11 +749,135 @@ test('R2A.1: real browser combat and paid input remain deterministic across host
 
 test.describe('R2A production workshop', () => {
   test.use({ hasTouch: true });
+  for (const mobile of [false, true]) test(`R2C production ${mobile ? '390x844 touch' : 'desktop keyboard'}: five drafts, exact mirror, isolated restore, purchases and replay`, async ({ page }) => {
+    test.setTimeout(90000);
+    const errors = observe(page);
+    await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
+    await page.goto('./'); await expect(page.locator('#battlefield canvas')).toBeVisible();
+    await expect(page.locator('#workshop')).not.toHaveAttribute('open');
+    await page.locator('#workshop summary').focus(); await page.keyboard.press('Enter');
+    const summaries = page.locator('#slot-summaries .build-summary');
+    await expect(summaries).toHaveCount(5);
+    await expect(page.locator('#custom-weapon')).toHaveCount(1);
+    await page.locator('#custom-weapon').selectOption('club');
+    await page.locator('#custom-slot').selectOption('1');
+    await expect(page.locator('#draft-status')).toContainText('Đã bỏ nháp chưa áp dụng của slot 1');
+    await expect(page.locator('#custom-weapon')).toHaveValue('axe');
+    await expect(page.locator('#summon')).toHaveAttribute('data-unit-type','sword');
+    for (let slot = 0; slot < 5; slot++) {
+      if (mobile) await summaries.nth(slot).tap();
+      else { await summaries.nth(slot).focus(); await page.keyboard.press('Enter'); }
+      await expect(summaries.nth(slot)).toHaveAttribute('aria-pressed','true');
+      const p = compileBuild(fiveBuilds[slot]);
+      await page.locator('#custom-weapon').selectOption(p.weaponId);
+      await page.locator('#custom-offhand').selectOption(p.shieldHp ? 'shield' : 'empty');
+      await page.locator('#apply-custom').click();
+      await expect(summaries.nth(slot)).toContainText('Custom');
+      await expect(summaries.nth(slot)).toContainText(p.name);
+      await expect(summaries.nth(slot)).toContainText(`${p.cost} Vàng`);
+      await expect(page.locator('#draft-status')).toContainText('Đang xem bản đã áp dụng');
+    }
+    await expect(page.locator('#custom-status')).toContainText('5/5 Custom');
+    const applied = await summaries.allTextContents();
+    await page.locator('#custom-slot').selectOption('2');
+    await expect(page.locator('#custom-offhand')).toHaveValue('shield');
+    await page.locator('#custom-weapon').selectOption('club');
+    await page.locator('#custom-slot').selectOption('0');
+    await expect(page.locator('#custom-weapon')).toHaveValue('spear');
+    await expect(page.locator('#custom-offhand')).toHaveValue('empty');
+    expect(await summaries.allTextContents()).toEqual(applied.map((text, slot) => text.replace(slot === 4 ? 'Đang sửa slot này' : `Sửa slot ${slot + 1}`, slot === 0 ? 'Đang sửa slot này' : `Sửa slot ${slot + 1}`)));
+    await page.locator('#custom-slot').selectOption('2');
+    await expect(page.locator('#custom-weapon')).toHaveValue('axe');
+    // An unapplied draft must not enter combat, even when Start is pressed.
+    await page.locator('#custom-weapon').selectOption('club');
+    await page.screenshot({ path: `test-results/r2c-${mobile ? 'mobile' : 'desktop'}-workshop.png`, fullPage: true });
+    for (let slot = 0; slot < 5; slot++) {
+      await page.locator('#start').click();
+      await expect(page.locator('#workshop-controls')).toHaveJSProperty('disabled', true);
+      await expect(summaries.nth(slot)).toBeDisabled();
+      const p = compileBuild(fiveBuilds[slot]);
+      for (const side of ['player', 'bot']) {
+        const cards = page.locator(`#${side}-slots .slot`); await expect(cards).toHaveCount(5);
+        for (let i = 0; i < 5; i++) {
+          const q = compileBuild(fiveBuilds[i]);
+          await expect(cards.nth(i)).toHaveAttribute('data-unit-type', `custom:${q.weaponId}:${q.shieldHp}`);
+          await expect(cards.nth(i)).toContainText(`DMG ${q.damage}`);
+          await expect(cards.nth(i)).toContainText(`${q.cost} Vàng`);
+          if (side === 'bot') await expect(cards.nth(i)).toBeDisabled();
+        }
+      }
+      const button = page.locator('#player-slots .slot').nth(slot);
+      const purchase = await button.evaluate(node => {
+        const before = Number(document.querySelector('#gold')!.textContent);
+        (node as HTMLButtonElement).click();
+        return { paid: before - Number(document.querySelector('#gold')!.textContent), state: (node as HTMLElement).dataset.state };
+      });
+      expect(purchase).toEqual({ paid: p.cost, state: 'cooling' });
+      await expect(page.locator('#allies')).toHaveText('1');
+      await button.dispatchEvent('click'); await expect(page.locator('#allies')).toHaveText('1');
+    }
+    await expect(page.locator('#bot-choice')).toContainText('Bot:', { timeout: 3000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/r2c-${mobile ? 'mobile' : 'desktop'}-battle.png`, fullPage: true });
+    await page.locator('#setup').click();
+    await expect(page.locator('#custom-slot')).toHaveValue('2');
+    await expect(page.locator('#custom-weapon')).toHaveValue('axe');
+    await expect(page.locator('#custom-offhand')).toHaveValue('shield');
+    await page.locator('#custom-weapon').selectOption('club'); await page.locator('#apply-custom').click();
+    for (const side of ['player','bot']) {
+      await expect(page.locator(`#${side}-slots .slot`).nth(0)).toHaveAttribute('data-unit-type','custom:spear:0');
+      await expect(page.locator(`#${side}-slots .slot`).nth(2)).toHaveAttribute('data-unit-type','custom:club:30');
+    }
+    await page.locator('#clear-custom').click();
+    await expect(page.locator('#custom-status')).toContainText('4/5 Custom');
+    for (let i = 0; i < 5; i++) for (const side of ['player','bot']) {
+      const p = compileBuild(fiveBuilds[i]);
+      await expect(page.locator(`#${side}-slots .slot`).nth(i)).toHaveAttribute('data-unit-type', i === 2 ? 'shield' : `custom:${p.weaponId}:${p.shieldHp}`);
+    }
+    for (const button of await summaries.all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.reload();
+    expect(await page.locator('#player-slots .slot').evaluateAll(nodes => nodes.map(n => (n as HTMLElement).dataset.unitType))).toEqual(DEFAULT_LOADOUT);
+    expect(errors).toEqual([]);
+  });
+
+  test('R2C real clock: five custom builds fight the paying Bot to a terminal outcome without state injection', async ({ page }) => {
+    test.setTimeout(150000);
+    const errors = observe(page); await page.goto('./'); await page.locator('#workshop summary').click();
+    for (let slot = 0; slot < 5; slot++) {
+      const p = compileBuild(fiveBuilds[slot]);
+      await page.locator('#custom-slot').selectOption(String(slot));
+      await page.locator('#custom-weapon').selectOption(p.weaponId);
+      await page.locator('#custom-offhand').selectOption(p.shieldHp ? 'shield' : 'empty');
+      await page.locator('#apply-custom').click();
+    }
+    await page.locator('#start').click(); const started = Date.now(); let cursor = 0, botSeen = false;
+    const purchases: number[] = [];
+    while (await page.locator('#battle-status').getAttribute('data-phase') === 'running' && Date.now() - started < 125000) {
+      const slot = [2,0,1,3,4][cursor % 5];
+      const paid = await page.locator('#player-slots .slot').nth(slot).evaluate(node => {
+        const button = node as HTMLButtonElement; if (button.disabled) return undefined;
+        const gold = Number(document.querySelector('#gold')!.textContent); button.click();
+        return gold - Number(document.querySelector('#gold')!.textContent);
+      });
+      if (paid !== undefined) { expect(paid).toBe(compileBuild(fiveBuilds[slot]).cost); purchases.push(slot); cursor++; }
+      if ((await page.locator('#bot-choice').textContent())!.startsWith('Bot:')) botSeen = true;
+      await page.waitForTimeout(100);
+    }
+    const outcome = await page.locator('#battle-status').getAttribute('data-phase');
+    expect(['won','lost']).toContain(outcome); expect(botSeen).toBe(true); expect(purchases.length).toBeGreaterThan(5);
+    expect(Number(await page.locator('#hits').textContent())).toBeGreaterThan(0);
+    await page.screenshot({ path: 'test-results/r2c-real-clock-outcome.png', fullPage: true });
+    await test.info().attach('r2c-real-clock', { body: JSON.stringify({ outcome, wallSeconds: (Date.now()-started)/1000, purchases }), contentType: 'application/json' });
+    expect(errors).toEqual([]);
+  });
+
   test('R2B mobile grouped select, special previews, draft/apply/replay/setup and keyboard/touch', async ({ page }) => {
     const errors=observe(page);await page.setViewportSize({width:390,height:844});await page.goto('./');
     await page.locator('#workshop summary').focus();await page.keyboard.press('Enter');
     await expect(page.locator('#custom-weapon optgroup')).toHaveCount(5);
     await expect(page.locator('#custom-weapon option')).toHaveCount(23);
+    await page.locator('#custom-slot').selectOption('3');
     await page.locator('#custom-weapon').selectOption('spear');
     await expect(page.locator('#custom-behavior')).toContainText('Tự lùi 48/s');
     await expect(page.locator('#custom-stats')).toContainText('Tầm 58');
@@ -532,7 +888,6 @@ test.describe('R2A production workshop', () => {
     await expect(page.locator('#custom-stats')).toContainText('Damage mỗi hit 26');
     await page.locator('#custom-offhand').selectOption('shield');
     await expect(page.locator('#custom-stats')).toContainText('Damage mỗi hit 20');
-    await page.locator('#custom-slot').selectOption('3');
     await expect(page.locator('#player-slots .slot').nth(3)).toHaveAttribute('data-unit-type','gladiator');
     await page.locator('#apply-custom').tap();
     for(const side of ['player','bot']) await expect(page.locator(`#${side}-slots .slot`).nth(3)).toHaveAttribute('data-unit-type','custom:falchion:30');
@@ -617,7 +972,7 @@ test.describe('R2A production workshop', () => {
     expect(errors).toEqual([]);
   });
 
-  test('mobile 390x844: keyboard/touch grip preview, shield lock, moving custom slot, restart and restore presets', async ({ page }) => {
+  test('R2C mobile 390x844: keyboard/touch grip preview, shield lock, independent slots, restart and restore one preset', async ({ page }) => {
     const errors = observe(page); await page.setViewportSize({width:390,height:844}); await page.goto('./');
     await page.locator('#workshop summary').focus(); await page.keyboard.press('Enter');
     await page.locator('#custom-weapon').selectOption('axe');
@@ -627,8 +982,11 @@ test.describe('R2A production workshop', () => {
     await expect(page.locator('#custom-stats')).toContainText('HP thân 60 / HP Khiên 30');
     await expect(page.locator('#custom-stats')).toContainText('Damage mỗi hit 26');
     await page.locator('#apply-custom').tap();
-    await page.locator('#custom-slot').selectOption('4'); await page.locator('#apply-custom').focus(); await page.keyboard.press('Space');
-    await expect(page.locator('#summon')).toHaveAttribute('data-unit-type','sword');
+    await page.locator('#custom-slot').selectOption('4');
+    await expect(page.locator('#custom-offhand')).toHaveValue('empty');
+    await page.locator('#custom-offhand').selectOption('shield');
+    await page.locator('#apply-custom').focus(); await page.keyboard.press('Space');
+    await expect(page.locator('#summon')).toHaveAttribute('data-unit-type','custom:axe:30');
     await expect(page.locator('#summon-5')).toHaveAttribute('data-unit-type','custom:axe:30');
     await page.screenshot({path:'test-results/r2a-workshop-mobile-shield.png',fullPage:true});
     await page.locator('#custom-weapon').selectOption('greatsword');
@@ -643,7 +1001,7 @@ test.describe('R2A production workshop', () => {
     await page.locator('#start').tap();
     await expect(page.locator('#summon-5')).toHaveAttribute('data-unit-type','custom:greatsword:0');
     await page.locator('#setup').tap(); await page.locator('#clear-custom').tap();
-    for (const side of ['player','bot']) expect(await page.locator(`#${side}-slots .slot`).evaluateAll(nodes => nodes.map(n => (n as HTMLElement).dataset.unitType))).toEqual(DEFAULT_LOADOUT);
+    for (const side of ['player','bot']) expect(await page.locator(`#${side}-slots .slot`).evaluateAll(nodes => nodes.map(n => (n as HTMLElement).dataset.unitType))).toEqual(['custom:axe:30', ...DEFAULT_LOADOUT.slice(1)]);
     expect(errors).toEqual([]);
   });
 });

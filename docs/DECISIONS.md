@@ -15,7 +15,7 @@ Nguồn xác nhận: yêu cầu Owner R0A/R0B/R1A/R1B/R1C/R1D. Không coi tham s
 | C07 | Bạc buff nhỏ; Vàng đổi nhịp có đánh đổi; Kim Cương tiến hóa theo vũ khí và có skill riêng | Cả ba có phụ phí Vàng/CD theo bậc; chưa có thông số khóa |
 | C08 | Kim Cương không auto-win; rush Bạc là chiến lược hợp lệ | Mục tiêu cân bằng, chưa được kiểm chứng |
 | C09 | Owner đề xuất bốn quân; R1A duyệt roster và hướng vai trò để thử | Không khóa roster hoặc chỉ số của game hoàn chỉnh |
-| C10 | Mỗi loại quân/vũ khí có tối đa một slot trong đội hình | Owner đã chốt ở R1B; vẫn được triệu hồi nhiều bản sao từ cùng một slot |
+| C10 | R1B: mỗi loại quân có tối đa một slot preset; vẫn triệu hồi nhiều bản sao từ cùng slot | R2C giữ năm preset nền khác nhau; theo yêu cầu Owner mới, custom được trùng vũ khí hoặc toàn bộ build giữa các slot. Không áp giới hạn preset cho custom |
 
 ## APPROVED FOR R0B TECHNICAL PROTOTYPE
 
@@ -87,6 +87,37 @@ Fresh-check R1C: `da7d13c46f550b5a66576253f47323260ac8deef` trùng `origin/main`
 **TEMP_R1D revision, chưa khóa cân bằng:** Búa theo số Owner cho thử: HP 72 / DMG 26 / splash 10 mỗi quân phụ trong vùng 40, không cap / windup 0.9s / khoảng đánh 1.8s / tốc 60 / tầm 28 / giá 45 / CD 4s. Bộ 18/8/cap hai/giá 40 đã bị thay, không phải thông số hiện hành. Giáo giữ offset 30 và tìm đồng minh trong 96; thêm ngưỡng kite thử 52 trong tầm 58, không yêu cầu có đồng minh mới được lùi. Các ngưỡng 30/96/52 do triển khai chọn, cần Owner đánh giá. Bot giữ heuristic/nhịp R1C và điểm Búa thử 10 khi có cụm địch gần giao chiến; cùng giá 45 lấy từ bảng, không bù tiền/CD. Xem đối đầu revision tại [GAME_DESIGN](GAME_DESIGN.md).
 
 R1D trước revision chỉ lùi để nhường đồng minh là diễn giải đã bị Owner thay bằng kiting chủ động. Logic giữ timer khi đổi mục tiêu trong tầm đã đúng, revision thêm regression; sửa nhỏ ca rời/vào nhanh từng cho khoảng đòn 0.62s và tránh làm tròn frame gây đòn sớm. R1C dùng offset 24/lùi 85 và năm loại cố định là lịch sử. R1D không thêm dependency, workflow, service, Spell Card, Kim Cương, tài khoản, backend, lưu dữ liệu hoặc PvP.
+
+## R2C — Five-Slot Modular Loadouts LOCAL, 04/11/2026
+
+Baseline Owner chỉ định và fresh-check thực tế: `HEAD`, `origin/main`, remote `refs/heads/main` cùng `d6d012f1868cdc8ff4ec50ddec10c7c8cce79090`, nhánh `main`, remote đúng `VesperKrock/laneforge-game`. Worktree/index sạch trước sửa, chỉ có các thư mục ignored đang có; giữ chúng và `.gitignore`. Quyền thực hiện chỉ local, dừng trước stage/commit/push/deploy.
+
+- **Hợp đồng slot:** collection nội bộ cố định năm phần tử. `getCustomProfile(slot)` trả snapshot custom hoặc `undefined`; `getSlotProfile(slot)` trả custom đúng slot hoặc preset nền (chỉ số sai ném `RangeError`). `setCustomBuild(slot, unknown)` và `clearCustomBuild(slot)` kiểm tra phase/chỉ số/validator trước thay đổi. API một-custom `customSlot` và global clear được thay có chủ đích; không giữ khái niệm “custom cuối cùng”.
+- **Bất biến:** compiler/validator R2B không đổi; profile, build, off-hand và behavior đã freeze. Setter tạo snapshot mới, không chia sẻ draft có thể sửa; sửa/xóa một slot giữ nguyên tham chiếu bốn slot kia. Collection dùng private field để trace JSON preset-only R1D/R2A.1 giữ nguyên, không cập nhật expected digest. Test mới chụp thêm năm effective profiles vì JSON của Battle không xuất private fields.
+- **Bot:** custom Unit có `sourceSlot` 0–4. Heuristic vẫn score 5, trừ 2 mỗi quân cùng slot, trừ 2 cho slot vừa chọn, quyết định mỗi 0.75s. Thay đúng phép đếm theo `weaponId` bằng `sourceSlot`; không đổi ưu tiên preset, giá/CD hay quy tắc combat. Đánh đổi có chủ đích: hai slot giống nhau có số quân riêng và có thể được Bot phân bổ lần lượt; không gộp thành một build. Chưa có AI tối ưu tổ hợp Giáo/Búa custom; đây không phải nghiên cứu win-rate.
+- **UX:** Xưởng mặc định đóng, chơi preset ngay được. Tổng quan đúng năm slot, nhãn Preset/Custom, tên, grip/tay phụ custom hoặc trang bị preset cố định, Vàng/CD và nút Sửa. Một editor dùng lại; chọn slot nạp bản đã áp dụng vào draft mới, hoặc nháp Rìu tay phụ trống khi slot đang dùng preset. Đổi slot bỏ nháp chưa áp dụng và báo rõ; chọn lại chính slot không xóa nháp. Chỉ Dùng bản lắp ráp cập nhật đội hình. Trả slot này về preset chỉ xóa slot đang sửa; không có thao tác xóa cả năm ngầm.
+- **Vòng đời:** Bắt đầu/Chơi lại reset trạng thái trận, giữ cả năm build và preset nền; không tự apply draft. Khóa chỉnh sửa khi running/won/lost. Về chuẩn bị nạp lại bản đã áp dụng của slot đang chọn; nháp chưa áp dụng bị bỏ có thông báo. Chọn lại năm preset nền không di chuyển custom: vị trí slot là identity. Reload reset về preset; UI nói rõ chưa lưu đội hình.
+- **Phạm vi:** giữ 23 active/43 catalogue, Giáo kite, Búa AOE, barrier Khiên 30 HP, bonus +30% chỉ thành phần damage vũ khí một tay đủ điều kiện khi tay phụ trống. Không thêm weapon, giáp/phụ kiện, thẻ, dual wield, tài khoản, backend, dependency, workflow hoặc rule Security Gate.
+
+### Kiểm chứng R2C local
+
+Trạng thái **R2C READY_FOR_APPROVAL** ngày 04/11/2026, không cấp quyền xuất bản. `npm run build` PASS gồm TypeScript và Vite. Full `npx playwright test --workers=1` **144/144 PASS / 540.53s**, `--workers=2` **144/144 PASS / 279.68s**; mỗi lượt không skip/retry/flaky, gồm 110 model/playtest và 34 browser (32 đồng hồ thật, hai RAF điều khiển). Không sửa `tests/smoke.spec.ts`, không đổi digest golden default hoặc clock R2A.1.
+
+48 biến thể đội hình năm custom đối xứng (sáu lịch dt × đổi phe × đổi ID từng cặp × đảo mảng) dùng đường mua thật; harness chỉ tắt quyết định tự động để kiểm input hai phía tương ứng. Mẫu 16 trận trên bốn đội hình mixed/all-custom/identical, idle/cycle và hai lịch dt kết thúc 4 won / 12 lost, 12.72–87.22s; kiểm Vàng Bot từng bước, giá/CD/profile từng purchase. Bot đã dùng đủ năm slot trong mẫu năm Đoản kiếm giống nhau. Đây là mẫu correctness, không suy ra win-rate hoặc khóa cân bằng.
+
+Production preview `/laneforge-game/`: desktop 1440×1000 và touch 390×844 PASS apply slot 1→5, nháp riêng/không tự apply, sửa slot 3 giữ slot 1, trả slot 3 về preset, paid summon/CD, hai bên cùng profile, restart/setup/reload, keyboard/focus/touch và không overflow. Trận browser năm custom dùng đồng hồ thật kết thúc `lost` ở cả hai lượt (39.411s / 44.033s host, bảy lượt mua thật); ca Greatsword thắng Bot và idle defeat kế thừa cũng PASS. Không inject HP/Vàng/kết quả để ép xanh; observer console/pageerror/network không báo lỗi.
+
+Lượt targeted đầu **17/19 PASS**, hai test browser mới dùng nhầm `toBeDisabled()` cho fieldset; trace hiển thị fieldset/control con đã disabled. Sửa matcher thành `toHaveJSProperty('disabled', true)`, giữ assertions khóa nút con; targeted UI sau sửa **3/3 PASS** và hai full suite trên đều PASS. Đây là lỗi assertion được đóng, không phải sửa combat hay thay kỳ vọng thắng/thua. Evidence ban đầu được giữ riêng, không ghi đè bằng lượt full.
+
+Security Gate `PASS_HEURISTIC`: 26 candidate / 26 tracked / 17 ignore checks / 0 staged / 0 findings; policy/allowlist không đổi. `npm audit --audit-level=low --json`: 0 vulnerabilities. Manifest cuối gồm bảy file sửa sẵn có, không file nguồn mới/xóa; SHA-256 tính trên bytes worktree. Log, JSON, screenshot, trace và manifest review ở thư mục ignored local, không đưa vào nguồn public.
+
+### R2C OPEN và giới hạn kế thừa
+
+- Số TEMP/balance và thời lượng duel/trận còn OPEN; không ép mọi duel về 4–7s hoặc coi mẫu trận là thống kê thắng. Bot custom giữ heuristic đơn giản R2B, không đánh giá tối ưu năm build.
+- Phân loại nguồn Pollaxe, Katana-Taichi, nhóm nguồn của sáu pháp khí và taxonomy đề xuất còn OPEN_REVIEW; giữ nguyên catalogue và toàn bộ metadata nguồn.
+- [Replay chính xác lỗi browser lịch sử R2A](R2A_REVIEW.md#open-và-điều-kiện-phát-hành-đề-xuất) còn OPEN vì trace cũ thiếu telemetry. Không xóa caveat bằng kết quả R2C mới. Regression clock R2A.1 và toàn bộ R1E được giữ nguyên.
+- Cảnh báo bundle Phaser >500 kB có từ baseline, chưa tối ưu trong R2C. Browser mobile là viewport/touch giả lập, chưa phải QA thiết bị thật. Security Gate là heuristic, không phải chứng minh tuyệt đối không có secret/PII.
+- Bản local cần Owner duyệt manifest và SHA-256 cuối; không suy ra quyền phát hành từ R2B đã công bố.
 
 ## OPEN / PROPOSED
 

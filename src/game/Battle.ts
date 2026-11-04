@@ -53,6 +53,8 @@ export interface Unit {
   flash: number;
   // Absent on legacy units, including the unchanged R1E fixtures.
   profile?: CompiledUnitProfile;
+  // Only custom summons need an explicit identity; presets remain unique by kind.
+  sourceSlot?: number;
   shieldHp?: number;
 }
 
@@ -75,23 +77,30 @@ function applyDamage(target: Unit, damage: number): void {
 export class Battle {
   private selected: readonly UnitKind[] = DEFAULT_LOADOUT;
   get loadout(): readonly UnitKind[] { return this.selected; }
-  private custom: Readonly<{ slot: number; profile: CompiledUnitProfile }> | undefined;
-  get customSlot() { return this.custom; }
+  // Private fields keep the legacy preset-only serialized golden traces unchanged.
+  #customProfiles: readonly (CompiledUnitProfile | undefined)[] = Object.freeze(Array(5).fill(undefined));
+
+  private validSlot(slot: number): boolean { return Number.isInteger(slot) && slot >= 0 && slot < 5; }
+
+  getCustomProfile(slot: number): CompiledUnitProfile | undefined {
+    return this.validSlot(slot) ? this.#customProfiles[slot] : undefined;
+  }
 
   getSlotProfile(slot: number) {
-    return this.custom?.slot === slot ? this.custom.profile : TEMP_R1D_UNITS[this.loadout[slot]];
+    if (!this.validSlot(slot)) throw new RangeError('Expected a battle slot from 0 to 4');
+    return this.#customProfiles[slot] ?? TEMP_R1D_UNITS[this.loadout[slot]];
   }
 
   setCustomBuild(slot: number, build: unknown): boolean {
-    if (this.phase !== 'ready' || !Number.isInteger(slot) || slot < 0 || slot >= 5 || !validateBuild(build).valid) return false;
+    if (this.phase !== 'ready' || !this.validSlot(slot) || !validateBuild(build).valid) return false;
     const profile = compileBuild(build as UnitBuild);
-    this.custom = Object.freeze({ slot, profile });
+    this.#customProfiles = Object.freeze(this.#customProfiles.map((previous, index) => index === slot ? profile : previous));
     return true;
   }
 
-  clearCustomBuild(): boolean {
-    if (this.phase !== 'ready') return false;
-    this.custom = undefined;
+  clearCustomBuild(slot: number): boolean {
+    if (this.phase !== 'ready' || !this.validSlot(slot)) return false;
+    this.#customProfiles = Object.freeze(this.#customProfiles.map((previous, index) => index === slot ? undefined : previous));
     return true;
   }
 
@@ -144,11 +153,10 @@ export class Battle {
 
   summon(side: Side, slot: number): boolean {
     if (!this.canSummon(side, slot)) return false;
-    const kind = this.loadout[slot];
     const profile = this.getSlotProfile(slot);
     this.gold[side] -= profile.cost;
     this.cooldowns[side][slot] = profile.cooldown;
-    this.spawn(side, kind, this.custom?.slot === slot ? this.custom.profile : undefined);
+    this.spawn(side, slot);
     this.event = `${side === 'friendly' ? 'Player' : 'Bot'}: ${profile.name} — trừ ${profile.cost} Vàng thử nghiệm.`;
     return true;
   }
@@ -327,9 +335,9 @@ export class Battle {
       hammer: { score: clustered ? 10 : 0, reason: 'Đánh nhóm quân gần nhau' },
     };
     const choices = this.loadout.map((kind, slot) => {
-      const custom = this.custom?.slot === slot ? this.custom.profile : undefined;
+      const custom = this.getCustomProfile(slot);
       const priority = custom ? { score: 5, reason: 'Cận chiến thử nghiệm' } : priorities[kind];
-      const count = own.filter(unit => custom ? unit.profile?.weaponId === custom.weaponId : !unit.profile && unit.kind === kind).length;
+      const count = own.filter(unit => custom ? unit.sourceSlot === slot : !unit.profile && unit.kind === kind).length;
       return { slot, reason: priority.reason, score: priority.score - count * 2 - (this.botChoice?.slot === slot ? 2 : 0) };
     }).filter(choice => choice.score > 0 && this.cooldowns.enemy[choice.slot] <= 0)
       .sort((a, b) => b.score - a.score || a.slot - b.slot);
@@ -340,7 +348,9 @@ export class Battle {
     return choices.find(choice => this.canSummon('enemy', choice.slot));
   }
 
-  private spawn(side: Side, kind: UnitKind, custom?: CompiledUnitProfile): void {
+  private spawn(side: Side, slot: number): void {
+    const kind = this.loadout[slot];
+    const custom = this.getCustomProfile(slot);
     const profile = custom ?? TEMP_R1D_UNITS[kind];
     this.units.push({
       id: this.nextId++, side, kind: custom ? 'sword' : kind,
@@ -352,7 +362,7 @@ export class Battle {
       attackInterval: profile.attackInterval,
       attackRange: profile.attackRange,
       attackIn: 0, engaged: false, flash: 0,
-      ...(custom ? { profile: custom, shieldHp: custom.shieldHp } : {}),
+      ...(custom ? { profile: custom, sourceSlot: slot, shieldHp: custom.shieldHp } : {}),
     });
   }
 }

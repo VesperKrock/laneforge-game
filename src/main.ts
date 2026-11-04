@@ -4,7 +4,7 @@ import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, describeCombatBehavior } from './game/WeaponCatalog';
 import { compileBuild } from './game/UnitBuild';
-import type { UnitBuild } from './game/UnitBuild';
+import type { CompiledUnitProfile, UnitBuild } from './game/UnitBuild';
 import './style.css';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -21,6 +21,26 @@ const workshopControls = element<HTMLFieldSetElement>('workshop-controls');
 const customSlot = element<HTMLSelectElement>('custom-slot');
 const customWeapon = element<HTMLSelectElement>('custom-weapon');
 const customOffhand = element<HTMLSelectElement>('custom-offhand');
+let editorSlot = 0;
+let loadedDraft = '';
+let draftDirty = false;
+let editorNotice = '';
+const gripLabel = (p: CompiledUnitProfile) => p.gripMode === 'fixed_two_hand' ? 'Hai tay cố định · tay phụ trống'
+  : p.shieldHp ? 'Một tay + Khiên' : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay +30% · tay phụ trống' : 'Một tay · tay phụ trống';
+const summaries = Array.from({ length: 5 }, (_, slot) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'build-summary';
+  button.dataset.slot = String(slot);
+  button.innerHTML = '<strong></strong><span></span><small></small><b>Sửa slot</b>';
+  button.addEventListener('click', () => {
+    if (battle.phase !== 'ready') return;
+    selectEditor(slot);
+    customWeapon.focus();
+  });
+  element('slot-summaries').append(button);
+  return button;
+});
 for (const family of ['one_hand_slash', 'one_hand_pierce', 'one_hand_blunt', 'polearm', 'two_hand_heavy'] as const) {
   const group = document.createElement('optgroup');
   group.label = FAMILY_LABELS[family];
@@ -49,12 +69,47 @@ function previewBuild(): void {
   element('custom-stats').textContent = `Bộ Binh demo · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
   element('custom-behavior').textContent = describeCombatBehavior(p.behavior);
 }
-for (const control of [customWeapon, customOffhand]) control.addEventListener('change', previewBuild);
-element('apply-custom').addEventListener('click', () => {
-  if (battle.setCustomBuild(Number(customSlot.value), draftBuild())) updateUi();
+function loadEditor(notice = ''): void {
+  const profile = battle.getCustomProfile(editorSlot);
+  customSlot.value = String(editorSlot);
+  // A preset starts with a valid, unapplied Axe draft; no previous slot's draft leaks in.
+  customWeapon.value = profile?.weaponId ?? 'axe';
+  customOffhand.value = profile?.build.equipment.offHand.kind ?? 'empty';
+  previewBuild();
+  loadedDraft = JSON.stringify(draftBuild());
+  draftDirty = false;
+  editorNotice = notice;
+}
+function selectEditor(slot: number): void {
+  if (slot === editorSlot) return;
+  const notice = draftDirty ? `Đã bỏ nháp chưa áp dụng của slot ${editorSlot + 1}.` : '';
+  editorSlot = slot;
+  loadEditor(notice);
+  updateUi();
+}
+customSlot.addEventListener('change', () => {
+  if (battle.phase === 'ready') selectEditor(Number(customSlot.value));
 });
-element('clear-custom').addEventListener('click', () => { if (battle.clearCustomBuild()) updateUi(); });
-previewBuild();
+for (const control of [customWeapon, customOffhand]) control.addEventListener('change', () => {
+  if (battle.phase !== 'ready') return;
+  previewBuild();
+  draftDirty = JSON.stringify(draftBuild()) !== loadedDraft;
+  editorNotice = '';
+  updateUi();
+});
+element('apply-custom').addEventListener('click', () => {
+  if (battle.setCustomBuild(editorSlot, draftBuild())) {
+    loadEditor(`Đã áp dụng riêng slot ${editorSlot + 1}.`);
+    updateUi();
+  }
+});
+element('clear-custom').addEventListener('click', () => {
+  if (battle.clearCustomBuild(editorSlot)) {
+    loadEditor(`Đã trả riêng slot ${editorSlot + 1} về preset.`);
+    updateUi();
+  }
+});
+loadEditor();
 let selected: UnitKind[] = [...battle.loadout];
 const armory = UNIT_KINDS.map(kind => {
   const profile = TEMP_R1D_UNITS[kind];
@@ -76,6 +131,13 @@ function prepareSlots(side: Side) {
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`#${side === 'friendly' ? 'player' : 'bot'}-slots .slot`));
   if (buttons.length !== 5) throw new Error('Expected five slots per side');
   return buttons.map((button, index) => {
+    if (side === 'enemy') {
+      const number = document.createElement('span');
+      number.className = 'slot-number'; number.textContent = String(index + 1).padStart(2, '0');
+      button.prepend(number);
+      const note = document.createElement('small'); note.className = 'slot-note';
+      button.querySelector('.slot-cooldown')!.before(note);
+    }
     if (side === 'friendly') button.addEventListener('click', () => { battle.summon('friendly', index); updateUi(); });
     return { button, label: button.querySelector<HTMLElement>('.slot-cooldown')! };
   });
@@ -98,9 +160,9 @@ function updateUi(): void {
   const remaining = { friendly: battle.cooldowns.friendly.map(value => value > 0 ? value.toFixed(1) : '0'), enemy: battle.cooldowns.enemy.map(value => value > 0 ? value.toFixed(1) : '0') };
   const ready = { friendly: slots.friendly.map((_slot, index) => battle.canSummon('friendly', index)), enemy: slots.enemy.map((_slot, index) => battle.canSummon('enemy', index)) };
   const highlighted = battle.botChoice && battle.elapsed - battle.botChoice.at < 1 ? battle.botChoice.slot : -1;
-  const custom = battle.customSlot;
-  const customKey = custom ? `${custom.slot}:${custom.profile.weaponId}:${custom.profile.shieldHp}` : '';
-  const ui = [battle.phase, customKey, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
+  const customs = battle.loadout.map((_, slot) => battle.getCustomProfile(slot));
+  const customKey = customs.map(p => p ? `${p.weaponId}:${p.shieldHp}` : '').join(',');
+  const ui = [battle.phase, customKey, editorSlot, draftDirty, editorNotice, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
   if (ui === previousUi) return;
   previousUi = ui;
   gold.textContent = String(Math.floor(battle.gold.friendly));
@@ -115,14 +177,29 @@ function updateUi(): void {
   start.disabled = battle.phase === 'ready' && selected.length !== 5;
   setup.disabled = battle.phase === 'ready';
   workshopControls.disabled = battle.phase !== 'ready';
-  element('custom-status').textContent = custom ? `Đang dùng slot ${custom.slot + 1}: ${custom.profile.name} · HP Khiên ${custom.profile.shieldHp} · Player/Bot cùng chỉ số, giá và CD.` : 'Chưa dùng bản lắp ráp · giữ gameplay R1D.';
-  selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm loại.';
+  element('custom-status').textContent = `${customs.filter(Boolean).length}/5 Custom · Player/Bot dùng cùng năm bản thiết kế, cùng chỉ số, Vàng và CD.`;
+  element('editor-title').textContent = `Sửa slot ${editorSlot + 1} · Bộ Binh demo`;
+  element('draft-status').textContent = `${editorNotice} ${battle.phase !== 'ready' ? 'Đội hình đã khóa; nháp không dùng trong trận.'
+    : draftDirty ? `Slot ${editorSlot + 1}: Nháp chưa áp dụng — bấm Dùng bản lắp ráp để thay slot này.`
+      : customs[editorSlot] ? `Slot ${editorSlot + 1}: Đang xem bản đã áp dụng.`
+        : `Slot ${editorSlot + 1}: Đang dùng Preset. Nháp Rìu gợi ý chưa áp dụng.`}`.trim();
+  element<HTMLButtonElement>('clear-custom').disabled = battle.phase !== 'ready' || !customs[editorSlot];
+  summaries.forEach((button, slot) => {
+    const p = battle.getSlotProfile(slot), custom = customs[slot];
+    button.setAttribute('aria-pressed', String(slot === editorSlot));
+    button.querySelector('strong')!.textContent = `Slot ${slot + 1} · ${custom ? 'Custom' : 'Preset'}`;
+    button.querySelector('span')!.textContent = p.name;
+    button.querySelector('small')!.textContent = `${custom ? gripLabel(custom) : 'Trang bị preset cố định'} · ${p.cost} Vàng · CD ${p.cooldown}s`;
+    button.querySelector('b')!.textContent = slot === editorSlot ? 'Đang sửa slot này' : `Sửa slot ${slot + 1}`;
+  });
+  selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm slot.';
   for (const { button, kind } of armory) {
     button.setAttribute('aria-pressed', String(selected.includes(kind)));
     button.disabled = battle.phase !== 'ready' || (!selected.includes(kind) && selected.length === 5);
   }
   for (const side of ['friendly', 'enemy'] as const) slots[side].forEach(({ button, label }, index) => {
-    const kind = custom?.slot === index ? `custom:${custom.profile.weaponId}:${custom.profile.shieldHp}` : battle.loadout[index];
+    const custom = customs[index];
+    const kind = custom ? `custom:${custom.weaponId}:${custom.shieldHp}` : battle.loadout[index];
     const profile = battle.getSlotProfile(index);
     if (button.dataset.unitType !== kind) {
       button.dataset.unitType = kind;
@@ -130,7 +207,7 @@ function updateUi(): void {
       button.querySelector('strong')!.textContent = profile.name;
       button.querySelector('.slot-price')!.textContent = `${profile.cost} Vàng · ${profile.cooldown}s CD`;
       const note = button.querySelector('.slot-note');
-      if (note) note.textContent = `${profile.role} · Tầm ${profile.attackRange}`;
+      if (note) note.textContent = `${custom ? `Custom · HP Khiên ${custom.shieldHp}` : 'Preset'} · HP ${profile.hp} · DMG ${profile.damage} · Nhịp ${profile.attackInterval}s · Tầm ${profile.attackRange} · Tốc ${profile.speed}`;
     }
     const state = battle.phase !== 'running' ? 'inactive' : battle.cooldowns[side][index] > 0 ? 'cooling' : battle.gold[side] < profile.cost ? 'insufficient' : ready[side][index] ? 'ready' : 'blocked';
     button.dataset.state = state;
@@ -152,12 +229,7 @@ start.addEventListener('click', () => {
 });
 setup.addEventListener('click', () => {
   battle.prepare(); selected = [...battle.loadout];
-  if (battle.customSlot) {
-    const { slot, profile } = battle.customSlot;
-    customSlot.value = String(slot); customWeapon.value = profile.weaponId;
-    customOffhand.value = profile.build.equipment.offHand.kind;
-    previewBuild();
-  }
+  loadEditor(draftDirty ? 'Đã bỏ nháp chưa áp dụng; đang xem đội hình dùng trong trận.' : 'Đã về chuẩn bị; giữ nguyên năm slot.');
   updateUi();
 });
 updateUi();

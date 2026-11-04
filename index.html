@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R2B LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
+        <span class="build-tag">R2C LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -26,22 +26,27 @@
         <div id="armory-choices" class="armory-choices" role="group" aria-label="Chọn năm loại quân khác nhau"></div>
         <p id="selection-count" role="status">Đã chọn 5/5</p>
         <details id="workshop" class="workshop">
-          <summary>Xưởng thử nghiệm R2B</summary>
-          <p class="workshop-help">Lắp Bộ Binh demo vào một slot; Bot dùng cùng bản lắp ráp. 23 vũ khí cận chiến theo năm nhóm, 20 món còn lại chỉ có trong danh mục thiết kế.</p>
+          <summary>Xưởng lắp ráp · năm Unit độc lập</summary>
+          <p class="workshop-help">Tùy chọn: lắp từ một đến năm Unit, trộn Preset/Custom, được trùng vũ khí hoặc bản thiết kế. Bot dùng cùng đội hình. 23 vũ khí cận chiến theo năm nhóm, 20 món còn lại chỉ có trong danh mục thiết kế.</p>
           <fieldset id="workshop-controls">
-            <legend>Bộ Binh demo · trang bị cho trận này</legend>
+            <legend>Năm slot dùng trong trận</legend>
+            <div id="slot-summaries" class="slot-summaries" role="group" aria-label="Năm bản thiết kế đã áp dụng"></div>
+            <h3 id="editor-title">Sửa slot 1 · Bộ Binh demo</h3>
+            <p class="workshop-help">Đổi slot sẽ bỏ nháp chưa áp dụng. Chỉ nút Dùng bản lắp ráp mới thay đội hình; Bắt đầu không tự áp dụng nháp.</p>
             <div class="workshop-fields">
-              <label>Slot thay thế<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label>
+              <label>Đang sửa slot<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label>
               <label>Vũ khí chính<select id="custom-weapon"></select></label>
               <label>Tay phụ<select id="custom-offhand" aria-describedby="grip-note"><option value="empty">Trống</option><option value="shield">Khiên mẫu · 30 HP · +10 Vàng</option></select></label>
             </div>
             <p id="grip-note"></p>
-            <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Dùng bản lắp ráp</button><button id="clear-custom" class="setup-button" type="button">Trở về năm preset</button></div>
+            <p id="draft-status" role="status"></p>
+            <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Dùng bản lắp ráp</button><button id="clear-custom" class="setup-button" type="button">Trả slot này về preset</button></div>
           </fieldset>
           <p id="custom-stats" class="custom-stats" aria-live="polite"></p>
           <p id="custom-behavior" class="custom-stats" aria-live="polite"></p>
           <p class="workshop-help">TEMP_R2A / TEMP_R2B: số liệu thử nghiệm đang chờ đánh giá cân bằng. Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Chỉ Thương tự lùi và Búa chiến có AOE; ghi chú nguồn khác chưa thành hiệu ứng.</p>
-          <p id="custom-status" role="status">Chưa dùng bản lắp ráp · giữ gameplay R1D.</p>
+          <p id="custom-status" role="status">0/5 Custom · Player/Bot dùng cùng năm bản thiết kế.</p>
+          <p class="workshop-help">Chơi lại giữ nguyên cả năm build. Về chuẩn bị để sửa. Chưa lưu đội hình: tải lại trang sẽ trở về preset mặc định.</p>
         </details>
       </section>
 
@@ -65,7 +70,7 @@
       </section>
 
       <section class="deployment" aria-labelledby="deployment-title">
-        <div class="deployment-heading"><div><p class="eyebrow">PLAYER · BẠN ĐIỀU KHIỂN</p><h2 id="deployment-title">Năm slot. Năm loại quân.</h2></div><div class="gold-readout"><span>VÀNG PLAYER</span><strong id="gold">100</strong><small>+5 / giây · tối đa 125</small></div></div>
+        <div class="deployment-heading"><div><p class="eyebrow">PLAYER · BẠN ĐIỀU KHIỂN</p><h2 id="deployment-title">Năm slot. Đội hình của bạn.</h2></div><div class="gold-readout"><span>VÀNG PLAYER</span><strong id="gold">100</strong><small>+5 / giây · tối đa 125</small></div></div>
         <div id="player-slots" class="slots">
           <button id="summon" class="slot active-slot" type="button" disabled><span class="slot-number">01</span><span class="unit-symbol" aria-hidden="true">TK</span><strong>Trường Kiếm</strong><span class="slot-price"></span><small class="slot-note"></small><em id="cooldown" class="slot-cooldown">Chờ bắt đầu</em></button>
           <button id="summon-2" class="slot active-slot" type="button" disabled><span class="slot-number">02</span><span class="unit-symbol" aria-hidden="true">RI</span><strong>Rìu</strong><span class="slot-price"></span><small class="slot-note"></small><em class="slot-cooldown">Chờ bắt đầu</em></button>
