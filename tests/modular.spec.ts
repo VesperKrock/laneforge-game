@@ -5,13 +5,112 @@ import assert from 'node:assert/strict';
 import { Battle, DEFAULT_LOADOUT, TEMP_R1D_UNITS } from '../src/game/Battle';
 import type { Side, Unit, UnitKind } from '../src/game/Battle';
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, compileCombatBehavior, SINGLE_TARGET } from '../src/game/WeaponCatalog';
-import { compileBuild, validateBuild, TEMP_R2A_CORE } from '../src/game/UnitBuild';
+import { compileBuild, validateBuild, TEMP_R2A_CORE, TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES } from '../src/game/UnitBuild';
 import type { UnitBuild } from '../src/game/UnitBuild';
 
 function build(weapon = 'axe', shield = false): UnitBuild {
   return { coreId: 'infantry_demo', equipment: { mainHand: weapon,
     offHand: shield ? { kind: 'shield', shieldId: 'demo_shield' } : { kind: 'empty' } } };
 }
+
+function equipped(weapon = 'axe', shield = false, armor: string | null = null, accessory: string | null = null): UnitBuild {
+  const base = build(weapon, shield);
+  return { ...base, equipment: { ...base.equipment, armor, accessory } };
+}
+
+test('R2D equipment matrix: all weapons, legal grips and 16 armor/accessory combinations compile additively', () => {
+  expect(TEMP_R2D_ARMORS.map(a=>[a.id,a.hp,a.cost,a.speed])).toEqual([
+    ['light_armor',8,2,0],['chain_armor',18,6,-6],['heavy_armor',32,11,-12],
+  ]);
+  expect(TEMP_R2D_ACCESSORIES.map(a=>[a.id,a.hp,a.cost,a.speed,a.damage,a.cooldown])).toEqual([
+    ['vital_charm',12,4,0,0,0],['swift_charm',0,4,8,0,0],['whetstone',0,5,0,4,.2],
+  ]);
+  let count = 0;
+  for (const w of ACTIVE_WEAPONS) for (const shield of [false, true]) {
+    if (shield && w.gripClass !== 'one_hand') continue;
+    const base = compileBuild(build(w.id, shield));
+    for (const armor of [null, ...TEMP_R2D_ARMORS]) for (const accessory of [null, ...TEMP_R2D_ACCESSORIES]) {
+      const p = compileBuild(equipped(w.id, shield, armor?.id ?? null, accessory?.id ?? null));
+      const damageBase = w.damagePhysicalWeapon + (accessory?.damage ?? 0);
+      expect(p).toMatchObject({
+        hp: 60 + (armor?.hp ?? 0) + (accessory?.hp ?? 0), shieldHp: base.shieldHp,
+        speed: 85 + (armor?.speed ?? 0) + (accessory?.speed ?? 0),
+        cost: base.cost + (armor?.cost ?? 0) + (accessory?.cost ?? 0),
+        damagePhysicalWeaponBase: damageBase,
+        damage: Math.round(damageBase * (base.gripMode === 'two_hand_grip' ? 1.3 : 1)),
+        attackInterval: base.attackInterval, windup: base.windup, behavior: base.behavior,
+      });
+      expect(p.cooldown).toBeCloseTo(base.cooldown + (accessory?.cooldown ?? 0), 10);
+      expect(Object.isFrozen(p.build.equipment)).toBe(true);
+      count++;
+    }
+  }
+  expect(count).toBeGreaterThan(368);
+  expect(compileBuild(equipped('axe', false, 'heavy_armor', 'whetstone'))).toMatchObject({hp:92,speed:73,cost:51,damagePhysicalWeaponBase:30,damage:39,weaponBonus:9});
+  expect(compileBuild(equipped('axe', true, 'heavy_armor', 'vital_charm'))).toMatchObject({hp:104,shieldHp:30,speed:73,cost:60,damage:26});
+});
+
+test('R2D validation: reject forged equipment atomically, preserve legacy builds and immutable snapshots', () => {
+  const b = new Battle(); b.setCustomBuild(0, equipped());
+  const before = state(b);
+  for (const key of ['armor', 'accessory']) for (const value of ['', 'missing', 1, {}, [], undefined, 'demo_shield']) {
+    const input = { ...build(), equipment: { ...build().equipment, [key]: value } };
+    expect(validateBuild(input).valid).toBe(false);
+    expect(b.setCustomBuild(0, input)).toBe(false); expect(state(b)).toBe(before);
+    expect(() => compileBuild(input as UnitBuild)).toThrow(RangeError);
+  }
+  const input = equipped('axe', false, 'light_armor', 'swift_charm');
+  const p = compileBuild(input);
+  (input.equipment as {armor: string}).armor = 'heavy_armor';
+  expect(p.build.equipment.armor).toBe('light_armor'); expect(p.hp).toBe(68);
+  const old = compileBuild(build()); const explicit = compileBuild(equipped());
+  expect({...explicit, build:old.build}).toEqual(old);
+  for (const catalog of [TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES]) {
+    expect(Object.isFrozen(catalog)).toBe(true);
+    for (const item of catalog) expect(Object.isFrozen(item)).toBe(true);
+  }
+});
+
+test('R2D five equipped slots: identical paid Player/Bot profiles and CD, replay, draft isolation and individual restore', () => {
+  const b = new Battle();
+  const builds = [equipped('axe',true,'heavy_armor','vital_charm'), equipped('axe',false,'light_armor','whetstone'),
+    equipped('spear',false,'chain_armor','swift_charm'), equipped('war_hammer',true,null,'whetstone'),
+    equipped('axe',true,'heavy_armor','vital_charm')];
+  builds.forEach((v,i) => expect(b.setCustomBuild(i,v)).toBe(true));
+  const deck = effectiveDeck(b);
+  for (let slot = 0; slot < 5; slot++) {
+    b.start(); const p = compileBuild(builds[slot]);
+    for (const side of ['friendly','enemy'] as const) {
+      expect(b.summon(side,slot)).toBe(true);
+      expect(b.gold[side]).toBe(100-p.cost); expect(b.cooldowns[side][slot]).toBe(p.cooldown);
+      const unit = b.units.find(u=>u.side===side)!;
+      expect(unit).toMatchObject({hp:p.hp,maxHp:p.hp,speed:p.speed,damage:p.damage,shieldHp:p.shieldHp});
+      expect(b.summon(side,slot)).toBe(false);
+    }
+    expect(effectiveDeck(b)).toEqual(deck);
+  }
+  b.prepare(); b.clearCustomBuild(2);
+  for (const slot of [0,1,3,4]) expect(b.getSlotProfile(slot)).toBe(deck[slot]);
+  expect(b.getCustomProfile(2)).toBeUndefined();
+});
+
+test('R2D combat symmetry: equipped shield, grip, spear and hammer across six frame schedules', () => {
+  const builds = [equipped('axe',true,'heavy_armor','vital_charm'),equipped('axe',false,'light_armor','whetstone'),
+    equipped('spear',false,'chain_armor','swift_charm'),equipped('war_hammer',true,'heavy_armor','whetstone'),
+    equipped('greatsword',false,null,'whetstone')];
+  for (const input of builds) for (const schedule of frames) {
+    const b = new Battle(); b.setCustomBuild(0,input); b.start();
+    b.summon('friendly',0); b.summon('enemy',0);
+    b.cooldowns.enemy.fill(9999);
+    const [left,right] = b.units; left.x=440; right.x=500;
+    for (let tick=0; tick<1600 && left.hp>0 && right.hp>0; tick++) {
+      b.step(schedule[tick%schedule.length]);
+      expect(left.hp).toBe(right.hp); expect(left.shieldHp).toBe(right.shieldHp);
+      expect(left.x+right.x).toBeCloseTo(940,6);
+    }
+    expect(b.hits).toBeGreaterThan(0);
+  }
+});
 function legacy(kind: UnitKind, side: Side, id: number, x: number): Unit {
   const p = TEMP_R1D_UNITS[kind];
   return { id, kind, side, x, hp: p.hp, maxHp: p.hp, damage: p.damage, speed: p.speed,
@@ -749,6 +848,73 @@ test('R2A.1: real browser combat and paid input remain deterministic across host
 
 test.describe('R2A production workshop', () => {
   test.use({ hasTouch: true });
+  for (const mobile of [false, true]) test(`R2D ${mobile ? 'mobile touch 390x844' : 'desktop keyboard'}: equipment per slot, duplicates, restore, paid summon and replay`, async ({ page }) => {
+    const errors = observe(page);
+    await page.setViewportSize(mobile ? {width:390,height:844} : {width:1440,height:1000});
+    await page.goto('./');
+    await page.locator('#workshop summary').focus(); await page.keyboard.press('Enter');
+    const activate = async (selector: string) => {
+      if (mobile) await page.locator(selector).tap();
+      else { await page.locator(selector).focus(); await page.keyboard.press('Enter'); }
+    };
+    const armors = ['heavy_armor','light_armor','chain_armor','','heavy_armor'];
+    const accessories = ['vital_charm','whetstone','swift_charm','','vital_charm'];
+    await expect(page.locator('#custom-armor option')).toHaveCount(4);
+    await expect(page.locator('#custom-accessory option')).toHaveCount(4);
+    for (let i=0;i<5;i++) {
+      await page.locator('#custom-slot').selectOption(String(i));
+      await page.locator('#custom-offhand').selectOption('shield');
+      await page.locator('#custom-armor').selectOption(armors[i]);
+      await page.locator('#custom-accessory').selectOption(accessories[i]);
+      const p=compileBuild(equipped('axe',true,armors[i]||null,accessories[i]||null));
+      await expect(page.locator('#custom-stats')).toContainText(`HP thân ${p.hp} / HP Khiên 30`);
+      await expect(page.locator('#custom-stats')).toContainText(`Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`);
+      await activate('#apply-custom');
+      for (const side of ['player','bot']) await expect(page.locator(`#${side}-slots .slot`).nth(i)).toContainText(`${p.cost}`);
+    }
+    const summaries = page.locator('#slot-summaries .build-summary');
+    const summaryData = () => summaries.evaluateAll(nodes => nodes.map(n => Array.from(n.querySelectorAll('strong,span,small')).map(c=>c.textContent).join('|')));
+    const before = await summaryData();
+    await page.locator('#custom-slot').selectOption('1');
+    await page.locator('#custom-armor').selectOption('heavy_armor'); // Unapplied draft must not leak.
+    await page.locator('#custom-slot').selectOption('0');
+    await expect(page.locator('#custom-armor')).toHaveValue('heavy_armor');
+    await expect(page.locator('#custom-accessory')).toHaveValue('vital_charm');
+    await page.locator('#custom-slot').selectOption('1');
+    await expect(page.locator('#custom-armor')).toHaveValue('light_armor');
+    expect(await summaryData()).toEqual(before);
+    await activate('#clear-custom');
+    for (const slot of [0,2,3,4]) expect((await summaryData())[slot]).toBe(before[slot]);
+    await expect(page.locator('#custom-armor')).toHaveValue('');
+    await expect(page.locator('#custom-accessory')).toHaveValue('');
+    await page.locator('#custom-offhand').selectOption('shield');
+    await page.locator('#custom-armor').selectOption('light_armor');
+    await page.locator('#custom-accessory').selectOption('whetstone');
+    await activate('#apply-custom');
+    expect(await summaryData()).toEqual(before);
+    await page.screenshot({path:`test-results/r2d-${mobile?'mobile':'desktop'}-equipment.png`,fullPage:true});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await activate('#start');
+    await expect(page.locator('#custom-armor')).toBeDisabled();
+    await expect(page.locator('#custom-accessory')).toBeDisabled();
+    const button = page.locator('#summon');
+    await button.evaluate(node => {
+      node.addEventListener('click',()=>{(node as HTMLElement).dataset.before=document.querySelector('#gold')!.textContent!;},{capture:true,once:true});
+      node.addEventListener('click',()=>{(node as HTMLElement).dataset.after=document.querySelector('#gold')!.textContent!;},{once:true});
+    });
+    await activate('#summon');
+    expect(await button.evaluate(n=>Number((n as HTMLElement).dataset.before)-Number((n as HTMLElement).dataset.after))).toBe(60);
+    await expect(button).toHaveAttribute('data-state','cooling');
+    await activate('#start'); // Replay while running retains all five equipped builds.
+    await activate('#setup');
+    expect(await summaryData()).toEqual(before);
+    for (let i=0;i<5;i++) {
+      await page.locator('#custom-slot').selectOption(String(i));
+      await expect(page.locator('#custom-armor')).toHaveValue(armors[i]);
+      await expect(page.locator('#custom-accessory')).toHaveValue(accessories[i]);
+    }
+    expect(errors).toEqual([]);
+  });
   for (const mobile of [false, true]) test(`R2C production ${mobile ? '390x844 touch' : 'desktop keyboard'}: five drafts, exact mirror, isolated restore, purchases and replay`, async ({ page }) => {
     test.setTimeout(90000);
     const errors = observe(page);

@@ -1,5 +1,26 @@
 # Quyết định thiết kế
 
+## R2D — Armor & Accessory Foundation local (14/11/2026)
+
+Baseline R2C đã phát hành: `050c05cd65078a25ef24321d36ce2f247d815f0d`. Owner chỉ cho phép làm local; không stage/commit/push/deploy trước phê duyệt riêng.
+
+`UnitBuild.equipment` có thêm `armor` và `accessory`; `null` là Không giáp / Không phụ kiện. Build cũ thiếu hai trường vẫn hợp lệ, giữ chỉ số cũ. ID không hợp lệ bị từ chối trước khi thay đội hình. Compiler tạo snapshot bất biến; năm slot, replay và Player/Bot dùng cùng profile, giá và CD như R2C.
+
+| TEMP_R2D | HP thân | Vàng | Tốc | Damage vũ khí gốc | CD triệu hồi |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Light Armor | +8 | +2 | 0 | 0 | 0 |
+| Chain Armor | +18 | +6 | -6 | 0 | 0 |
+| Heavy Armor | +32 | +11 | -12 | 0 | 0 |
+| Vital Charm | +12 | +4 | 0 | 0 | 0 |
+| Swift Charm | 0 | +4 | +8 | 0 | 0 |
+| Whetstone | 0 | +5 | 0 | +4 | +0.2s |
+
+Giáp/phụ kiện cộng chỉ số, không tạo hệ phòng thủ. Whetstone cộng vào `damagePhysicalWeaponBase` trước bonus cầm hai tay +30% và làm tròn; không đổi core damage, attackInterval, windup, AOE hoặc tốc lùi riêng của Giáo. Khiên vẫn là barrier độc lập 30 HP. Tốc di chuyển cơ bản nhận modifier giáp/phụ kiện. Không giáp/phụ kiện không thêm giá hay hiệu ứng.
+
+Một editor cho main hand, off hand, armor, accessory; nháp chỉ áp dụng khi bấm nút, đổi slot bỏ nháp, trả preset chỉ tác động slot đang sửa. Không thêm DEF/MDEF/STR/KG, dual wield, spell card, ranged system, backend/account hay dependency. Giữ 23 active weapons, Bot heuristic và combat hiện có.
+
+Số liệu vẫn TEMP, cần Owner thử cân bằng. Caveat replay browser R2A lịch sử và QA thiết bị thật vẫn OPEN; kiểm thử mới không xóa bằng chứng cũ.
+
 Nguồn xác nhận: yêu cầu Owner R0A/R0B/R1A/R1B/R1C/R1D. Không coi tham số do người triển khai chọn cho bản thử là quyết định thiết kế cuối cùng.
 
 ## CONFIRMED BY OWNER

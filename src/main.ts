@@ -3,7 +3,7 @@ import { Battle, DEMO, UNIT_KINDS, TEMP_R1D_UNITS } from './game/Battle';
 import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, describeCombatBehavior } from './game/WeaponCatalog';
-import { compileBuild } from './game/UnitBuild';
+import { compileBuild, TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES } from './game/UnitBuild';
 import type { CompiledUnitProfile, UnitBuild } from './game/UnitBuild';
 import './style.css';
 
@@ -21,6 +21,17 @@ const workshopControls = element<HTMLFieldSetElement>('workshop-controls');
 const customSlot = element<HTMLSelectElement>('custom-slot');
 const customWeapon = element<HTMLSelectElement>('custom-weapon');
 const customOffhand = element<HTMLSelectElement>('custom-offhand');
+const customArmor = element<HTMLSelectElement>('custom-armor');
+const customAccessory = element<HTMLSelectElement>('custom-accessory');
+for (const [select, catalog] of [[customArmor, TEMP_R2D_ARMORS], [customAccessory, TEMP_R2D_ACCESSORIES]] as const) {
+  for (const item of catalog) {
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = `${item.name} · +${item.hp} HP · ${item.speed >= 0 ? '+' : ''}${item.speed} tốc · +${item.cost} Vàng${'damage' in item && item.damage ? ' · +4 damage gốc · +0.2s CD' : ''}`;
+    select.append(option);
+  }
+}
+const equipmentLabel = (p: CompiledUnitProfile) => `${TEMP_R2D_ARMORS.find(a => a.id === p.build.equipment.armor)?.name ?? 'Không giáp'} · ${TEMP_R2D_ACCESSORIES.find(a => a.id === p.build.equipment.accessory)?.name ?? 'Không phụ kiện'}`;
 let editorSlot = 0;
 let loadedDraft = '';
 let draftDirty = false;
@@ -55,6 +66,7 @@ for (const family of ['one_hand_slash', 'one_hand_pierce', 'one_hand_blunt', 'po
 customWeapon.value = 'axe';
 function draftBuild(): UnitBuild {
   return { coreId: 'infantry_demo', equipment: { mainHand: customWeapon.value,
+    armor: customArmor.value || null, accessory: customAccessory.value || null,
     offHand: customOffhand.value === 'shield' ? { kind: 'shield', shieldId: 'demo_shield' } : { kind: 'empty' },
   } };
 }
@@ -66,7 +78,7 @@ function previewBuild(): void {
   const p = compileBuild(draftBuild());
   element('grip-note').textContent = p.gripMode === 'fixed_two_hand' ? 'Vũ khí hai tay cố định · chiếm cả hai tay, không mang Khiên; không cộng thêm 30%.'
     : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay (+30% damage vũ khí) · không mang Khiên.' : 'Một tay · không có bonus 30%.';
-  element('custom-stats').textContent = `Bộ Binh demo · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
+  element('custom-stats').textContent = `Bộ Binh demo · ${equipmentLabel(p)} · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
   element('custom-behavior').textContent = describeCombatBehavior(p.behavior);
 }
 function loadEditor(notice = ''): void {
@@ -75,6 +87,8 @@ function loadEditor(notice = ''): void {
   // A preset starts with a valid, unapplied Axe draft; no previous slot's draft leaks in.
   customWeapon.value = profile?.weaponId ?? 'axe';
   customOffhand.value = profile?.build.equipment.offHand.kind ?? 'empty';
+  customArmor.value = profile?.build.equipment.armor ?? '';
+  customAccessory.value = profile?.build.equipment.accessory ?? '';
   previewBuild();
   loadedDraft = JSON.stringify(draftBuild());
   draftDirty = false;
@@ -90,7 +104,7 @@ function selectEditor(slot: number): void {
 customSlot.addEventListener('change', () => {
   if (battle.phase === 'ready') selectEditor(Number(customSlot.value));
 });
-for (const control of [customWeapon, customOffhand]) control.addEventListener('change', () => {
+for (const control of [customWeapon, customOffhand, customArmor, customAccessory]) control.addEventListener('change', () => {
   if (battle.phase !== 'ready') return;
   previewBuild();
   draftDirty = JSON.stringify(draftBuild()) !== loadedDraft;
@@ -189,7 +203,7 @@ function updateUi(): void {
     button.setAttribute('aria-pressed', String(slot === editorSlot));
     button.querySelector('strong')!.textContent = `Slot ${slot + 1} · ${custom ? 'Custom' : 'Preset'}`;
     button.querySelector('span')!.textContent = p.name;
-    button.querySelector('small')!.textContent = `${custom ? gripLabel(custom) : 'Trang bị preset cố định'} · ${p.cost} Vàng · CD ${p.cooldown}s`;
+    button.querySelector('small')!.textContent = `${custom ? `${gripLabel(custom)} · ${equipmentLabel(custom)}` : 'Trang bị preset cố định'} · ${p.cost} Vàng · CD ${p.cooldown}s`;
     button.querySelector('b')!.textContent = slot === editorSlot ? 'Đang sửa slot này' : `Sửa slot ${slot + 1}`;
   });
   selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm slot.';

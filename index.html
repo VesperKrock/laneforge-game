@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R2C LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
+        <span class="build-tag">R2D LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -37,6 +37,8 @@
               <label>Đang sửa slot<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label>
               <label>Vũ khí chính<select id="custom-weapon"></select></label>
               <label>Tay phụ<select id="custom-offhand" aria-describedby="grip-note"><option value="empty">Trống</option><option value="shield">Khiên mẫu · 30 HP · +10 Vàng</option></select></label>
+              <label>Giáp<select id="custom-armor"><option value="">Không giáp</option></select></label>
+              <label>Phụ kiện<select id="custom-accessory"><option value="">Không phụ kiện</option></select></label>
             </div>
             <p id="grip-note"></p>
             <p id="draft-status" role="status"></p>
@@ -44,7 +46,7 @@
           </fieldset>
           <p id="custom-stats" class="custom-stats" aria-live="polite"></p>
           <p id="custom-behavior" class="custom-stats" aria-live="polite"></p>
-          <p class="workshop-help">TEMP_R2A / TEMP_R2B: số liệu thử nghiệm đang chờ đánh giá cân bằng. Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Chỉ Thương tự lùi và Búa chiến có AOE; ghi chú nguồn khác chưa thành hiệu ứng.</p>
+          <p class="workshop-help">TEMP_R2A / TEMP_R2B / TEMP_R2D: số liệu thử nghiệm đang chờ đánh giá cân bằng. Giáp và phụ kiện cộng chỉ số; Whetstone cộng damage gốc trước bonus hai tay, +0.2s CD triệu hồi (không đổi nhịp đánh). Khiên hấp thụ sát thương trước, phần dư vào thân; không có DEF, block ngẫu nhiên hay hồi Khiên. Chỉ Thương tự lùi và Búa chiến có AOE; ghi chú nguồn khác chưa thành hiệu ứng.</p>
           <p id="custom-status" role="status">0/5 Custom · Player/Bot dùng cùng năm bản thiết kế.</p>
           <p class="workshop-help">Chơi lại giữ nguyên cả năm build. Về chuẩn bị để sửa. Chưa lưu đội hình: tải lại trang sẽ trở về preset mặc định.</p>
         </details>
