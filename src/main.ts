@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { Battle, DEMO, UNIT_KINDS, TEMP_R1D_UNITS } from './game/Battle';
 import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
+import { WorkshopScene } from './game/WorkshopScene';
+import { WEAPON_VISUALS, hasWeaponVisual } from './game/WeaponVisual';
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, describeCombatBehavior } from './game/WeaponCatalog';
 import { compileBuild, TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES } from './game/UnitBuild';
 import type { CompiledUnitProfile, UnitBuild } from './game/UnitBuild';
@@ -23,6 +25,60 @@ const customWeapon = element<HTMLSelectElement>('custom-weapon');
 const customOffhand = element<HTMLSelectElement>('custom-offhand');
 const customArmor = element<HTMLSelectElement>('custom-armor');
 const customAccessory = element<HTMLSelectElement>('custom-accessory');
+const workshopScene = new WorkshopScene();
+const equipmentControls = { weapon: customWeapon, offhand: customOffhand, armor: customArmor, accessory: customAccessory };
+let selectedEquipment: keyof typeof equipmentControls | null = null;
+const equipmentButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-equipment]')];
+function renderEquipmentChoices(): void {
+  element('equipment-panel').hidden = selectedEquipment === null;
+  equipmentButtons.forEach(button => button.setAttribute('aria-expanded', String(button.dataset.equipment === selectedEquipment)));
+  const choices = element('equipment-choices');
+  const focusedChoice = choices.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.choice : undefined;
+  const scrollTop = choices.scrollTop;
+  choices.replaceChildren();
+  if (!selectedEquipment) return;
+  const control = equipmentControls[selectedEquipment];
+  element('equipment-title').textContent = { weapon: 'Vũ khí chính · 23 mẫu', offhand: 'Tay phụ', armor: 'Giáp · placeholder', accessory: 'Phụ kiện · placeholder' }[selectedEquipment];
+  const options = [...control.options];
+  if (selectedEquipment === 'weapon') options.sort((a, b) => Number(hasWeaponVisual(b.value)) - Number(hasWeaponVisual(a.value)));
+  for (const option of options) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'equipment-choice';
+    button.dataset.choice = option.value; button.disabled = option.disabled;
+    button.setAttribute('aria-pressed', String(control.value === option.value));
+    const v = selectedEquipment === 'weapon' ? WEAPON_VISUALS[option.value] : undefined;
+    const picture = document.createElement('span'); picture.className = 'equipment-picture';
+    if (v) {
+      const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 48; canvas.setAttribute('aria-hidden', 'true');
+      const image = new Image(); image.onload = () => {
+        const context = canvas.getContext('2d')!; context.imageSmoothingEnabled = false;
+        const [x, y, w, h] = v.thumbnail, s = Math.min(56 / w, 40 / h);
+        context.drawImage(image, x, y, w, h, (64 - w * s) / 2, (48 - h * s) / 2, w * s, h * s);
+      }; image.src = v.source; picture.append(canvas);
+    } else { picture.textContent = selectedEquipment === 'weapon' ? '◇' : '—'; picture.setAttribute('aria-hidden', 'true'); }
+    const text = document.createElement('span'), name = document.createElement('strong'), note = document.createElement('small');
+    name.textContent = v?.name ?? option.textContent;
+    const weapon = ACTIVE_WEAPONS.find(item => item.id === option.value);
+    note.textContent = weapon ? `${weapon.damagePhysicalWeapon} DMG gốc · ${weapon.attackInterval}s · ${v ? 'Sprite thật' : 'Chưa có sprite'}`
+      : selectedEquipment === 'offhand' ? (option.value === 'shield' ? '30 HP barrier · hình khối' : 'Không chiếm tay phụ') : 'Nhãn · chưa có sprite';
+    text.append(name, note); button.append(picture, text);
+    button.addEventListener('click', () => { control.value = option.value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+    choices.append(button);
+  }
+  choices.scrollTop = scrollTop;
+  if (focusedChoice !== undefined) [...choices.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.dataset.choice === focusedChoice)?.focus({ preventScroll: true });
+}
+for (const button of equipmentButtons) button.addEventListener('click', () => {
+  const key = button.dataset.equipment as keyof typeof equipmentControls;
+  selectedEquipment = selectedEquipment === key ? null : key; renderEquipmentChoices();
+});
+element('close-equipment').addEventListener('click', () => {
+  const previous = selectedEquipment; selectedEquipment = null; renderEquipmentChoices();
+  equipmentButtons.find(button => button.dataset.equipment === previous)?.focus();
+});
+element('try-attack').addEventListener('click', () => workshopScene.attack());
+element('flip-preview').addEventListener('click', () => workshopScene.flip());
+element<HTMLInputElement>('still-preview').addEventListener('change', event => workshopScene.setStill((event.target as HTMLInputElement).checked));
 for (const [select, catalog] of [[customArmor, TEMP_R2D_ARMORS], [customAccessory, TEMP_R2D_ACCESSORIES]] as const) {
   for (const item of catalog) {
     const option = document.createElement('option');
@@ -80,6 +136,14 @@ function previewBuild(): void {
     : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay (+30% damage vũ khí) · không mang Khiên.' : 'Một tay · không có bonus 30%.';
   element('custom-stats').textContent = `Bộ Binh demo · ${equipmentLabel(p)} · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
   element('custom-behavior').textContent = describeCombatBehavior(p.behavior);
+  element('visual-behavior').textContent = describeCombatBehavior(p.behavior);
+  element('visual-stats').innerHTML = [['HP', p.hp], ['Damage', p.damage], ['Speed', p.speed], ['Cost', p.cost], ['CD', `${p.cooldown}s`]]
+    .map(([name, value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('');
+  const mapped = hasWeaponVisual(p.weaponId);
+  element('visual-caption').textContent = mapped ? `${WEAPON_VISUALS[p.weaponId].name} · ${gripLabel(p)}` : `${WEAPON_CATALOG.find(item => item.id === p.weaponId)!.sourceName} · Chưa có sprite — hình học trong trận`;
+  element<HTMLButtonElement>('try-attack').disabled = !mapped;
+  workshopScene.setProfile(p);
+  renderEquipmentChoices();
 }
 function loadEditor(notice = ''): void {
   const profile = battle.getCustomProfile(editorSlot);
@@ -194,7 +258,7 @@ function updateUi(): void {
   element('custom-status').textContent = `${customs.filter(Boolean).length}/5 Custom · Player/Bot dùng cùng năm bản thiết kế, cùng chỉ số, Vàng và CD.`;
   element('editor-title').textContent = `Sửa slot ${editorSlot + 1} · Bộ Binh demo`;
   element('draft-status').textContent = `${editorNotice} ${battle.phase !== 'ready' ? 'Đội hình đã khóa; nháp không dùng trong trận.'
-    : draftDirty ? `Slot ${editorSlot + 1}: Nháp chưa áp dụng — bấm Dùng bản lắp ráp để thay slot này.`
+    : draftDirty ? `Slot ${editorSlot + 1}: Nháp chưa áp dụng — bấm Áp dụng build để thay slot này.`
       : customs[editorSlot] ? `Slot ${editorSlot + 1}: Đang xem bản đã áp dụng.`
         : `Slot ${editorSlot + 1}: Đang dùng Preset. Nháp Rìu gợi ý chưa áp dụng.`}`.trim();
   element<HTMLButtonElement>('clear-custom').disabled = battle.phase !== 'ready' || !customs[editorSlot];
@@ -248,6 +312,7 @@ setup.addEventListener('click', () => {
 });
 updateUi();
 
+const battleScene = new BattleScene(battle, updateUi);
 const game = new Phaser.Game({
   type: Phaser.CANVAS,
   parent: 'battlefield',
@@ -256,8 +321,22 @@ const game = new Phaser.Game({
   backgroundColor: '#0c191e',
   banner: false,
   audio: { noAudio: true },
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: new BattleScene(battle, updateUi),
+  pixelArt: true, roundPixels: true,
+  scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: battleScene,
+});
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-view]')) button.addEventListener('click', () => {
+  battleScene.setView(button.dataset.view as 'follow' | 'friendly' | 'enemy' | 'overview');
+  document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+});
+const previewGame = new Phaser.Game({
+  type: Phaser.CANVAS, parent: 'workshop-preview', width: 360, height: 260, transparent: true,
+  pixelArt: true, roundPixels: true, banner: false, audio: { noAudio: true },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: workshopScene,
+});
+element<HTMLDetailsElement>('workshop').addEventListener('toggle', () => {
+  if (element<HTMLDetailsElement>('workshop').open) { previewGame.loop.wake(); previewGame.scale.refresh(); }
+  else previewGame.loop.sleep();
 });
 
-if (import.meta.hot) import.meta.hot.dispose(() => game.destroy(true));
+if (import.meta.hot) import.meta.hot.dispose(() => { game.destroy(true); previewGame.destroy(true); });

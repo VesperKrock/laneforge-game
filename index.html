@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R2D LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
+        <span class="build-tag">R2W1 <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -31,18 +31,30 @@
           <fieldset id="workshop-controls">
             <legend>Năm slot dùng trong trận</legend>
             <div id="slot-summaries" class="slot-summaries" role="group" aria-label="Năm bản thiết kế đã áp dụng"></div>
-            <h3 id="editor-title">Sửa slot 1 · Bộ Binh demo</h3>
-            <p class="workshop-help">Đổi slot sẽ bỏ nháp chưa áp dụng. Chỉ nút Dùng bản lắp ráp mới thay đội hình; Bắt đầu không tự áp dụng nháp.</p>
-            <div class="workshop-fields">
-              <label>Đang sửa slot<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label>
-              <label>Vũ khí chính<select id="custom-weapon"></select></label>
-              <label>Tay phụ<select id="custom-offhand" aria-describedby="grip-note"><option value="empty">Trống</option><option value="shield">Khiên mẫu · 30 HP · +10 Vàng</option></select></label>
-              <label>Giáp<select id="custom-armor"><option value="">Không giáp</option></select></label>
-              <label>Phụ kiện<select id="custom-accessory"><option value="">Không phụ kiện</option></select></label>
+            <div class="editor-bar"><h3 id="editor-title">Sửa slot 1 · Bộ Binh demo</h3><label>Chọn slot<select id="custom-slot"><option value="0">Slot 1</option><option value="1">Slot 2</option><option value="2">Slot 3</option><option value="3">Slot 4</option><option value="4">Slot 5</option></select></label></div>
+            <div class="visual-workshop">
+              <section class="warrior-preview" aria-label="Chiến binh đang lắp ráp">
+                <p class="eyebrow">RÈN NÊN CHIẾN BINH</p>
+                <div id="workshop-preview" role="img" aria-label="Preview toàn thân với vũ khí bản nháp"></div>
+                <p id="visual-caption" class="visual-caption"></p>
+                <div class="preview-actions"><button id="try-attack" class="setup-button" type="button">Thử đòn đánh ↗</button><button id="flip-preview" class="setup-button" type="button">↔ Đảo hướng</button><label><input id="still-preview" type="checkbox"> Đứng yên</label></div>
+                <div class="workshop-fields">
+                  <div class="equipment-position"><button type="button" data-equipment="weapon" aria-expanded="false" aria-controls="equipment-panel">Vũ khí chính <span>＋</span></button><label><span class="sr-only">Chọn vũ khí chính</span><select id="custom-weapon"></select></label></div>
+                  <div class="equipment-position"><button type="button" data-equipment="offhand" aria-expanded="false" aria-controls="equipment-panel">Tay phụ <span>＋</span></button><label><span class="sr-only">Chọn tay phụ</span><select id="custom-offhand" aria-describedby="grip-note"><option value="empty">Trống</option><option value="shield">Khiên mẫu · 30 HP · +10 Vàng</option></select></label></div>
+                  <div class="equipment-position"><button type="button" data-equipment="armor" aria-expanded="false" aria-controls="equipment-panel">Giáp <span>＋</span></button><label><span class="sr-only">Chọn giáp</span><select id="custom-armor"><option value="">Không giáp</option></select></label></div>
+                  <div class="equipment-position"><button type="button" data-equipment="accessory" aria-expanded="false" aria-controls="equipment-panel">Phụ kiện <span>＋</span></button><label><span class="sr-only">Chọn phụ kiện</span><select id="custom-accessory"><option value="">Không phụ kiện</option></select></label></div>
+                </div>
+                <p class="placeholder-note">Giáp/phụ kiện: nhãn placeholder, chưa đổi ngoại hình. Khiên dùng hình khối.</p>
+              </section>
+              <section class="equipment-editor" aria-label="Lựa chọn trang bị và xác nhận">
+                <div id="equipment-panel" hidden><div class="panel-title"><h3 id="equipment-title">Vũ khí chính</h3><button id="close-equipment" type="button" class="setup-button" aria-label="Đóng danh sách trang bị">×</button></div><div id="equipment-choices"></div></div>
+                <h3>Thông số bản nháp</h3><dl id="visual-stats"></dl>
+                <p id="visual-behavior"></p><p id="grip-note"></p>
+                <p id="draft-status" role="status"></p>
+                <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Áp dụng build</button><button id="clear-custom" class="setup-button" type="button">Trả slot này về preset</button></div>
+                <p class="workshop-help">Đổi slot bỏ nháp chưa áp dụng. Bắt đầu không tự áp dụng nháp.</p>
+              </section>
             </div>
-            <p id="grip-note"></p>
-            <p id="draft-status" role="status"></p>
-            <div class="workshop-actions"><button id="apply-custom" class="setup-button" type="button">Dùng bản lắp ráp</button><button id="clear-custom" class="setup-button" type="button">Trả slot này về preset</button></div>
           </fieldset>
           <p id="custom-stats" class="custom-stats" aria-live="polite"></p>
           <p id="custom-behavior" class="custom-stats" aria-live="polite"></p>
@@ -68,6 +80,7 @@
         <div class="battle-topline"><span><i class="signal" aria-hidden="true"></i> CHIẾN TUYẾN 01</span><span id="battle-status" role="status">Sẵn sàng — bấm Bắt đầu</span></div>
         <div class="base-readouts"><span>CĂN CỨ PLAYER <strong id="player-hp">—</strong></span><span>CĂN CỨ BOT <strong id="enemy-hp">—</strong></span></div>
         <div id="battlefield" role="img" aria-label="Hai căn cứ ở hai đầu một đường ngang. Quân ta màu xanh, quân địch màu đỏ."></div>
+        <nav id="camera-controls" aria-label="Góc nhìn chiến trường"><button type="button" data-view="follow" aria-pressed="true">Theo giao tranh</button><button type="button" data-view="friendly" aria-pressed="false">Căn cứ ta</button><button type="button" data-view="enemy" aria-pressed="false">Căn cứ Bot</button><button type="button" data-view="overview" aria-pressed="false">Toàn tuyến</button></nav>
         <div class="battle-foot"><span id="battle-event">Bấm Bắt đầu để đấu với Bot.</span><span>Lính ta: <b id="allies">0</b> <span aria-hidden="true">·</span> Đòn trúng: <b id="hits">0</b></span></div>
       </section>
 

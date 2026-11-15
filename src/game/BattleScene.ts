@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Battle, DEMO, TEMP_R1D_UNITS } from './Battle';
+import { hasWeaponVisual, preloadWeaponVisuals, registerVisualFrames, WeaponRig, visualPose } from './WeaponVisual';
 
 const LABEL_Y = { sword: 204, axe: 190, shield: 176, gladiator: 162, spear: 148, hammer: 134 } as const;
 const DRAW_Y = { sword: 0, axe: -6, shield: 6, gladiator: -12, spear: -18, hammer: 12 } as const;
@@ -10,6 +11,8 @@ export class BattleScene extends Phaser.Scene {
   private drawing!: Phaser.GameObjects.Graphics;
   private message!: Phaser.GameObjects.Text;
   private readonly unitLabels = new Map<number, Phaser.GameObjects.Text>();
+  private readonly visualRigs = new Map<number, WeaponRig>();
+  private view: 'follow' | 'friendly' | 'enemy' | 'overview' = 'follow';
 
   constructor(battle: Battle, onUpdate: () => void) {
     super('battle');
@@ -17,16 +20,26 @@ export class BattleScene extends Phaser.Scene {
     this.onUpdate = onUpdate;
   }
 
+  preload(): void { preloadWeaponVisuals(this); }
+
+  setView(view: 'follow' | 'friendly' | 'enemy' | 'overview'): void { this.view = view; }
+
   create(): void {
+    registerVisualFrames(this);
     this.drawing = this.add.graphics();
     this.message = this.add.text(DEMO.width / 2, 90, '', {
       fontFamily: 'system-ui, sans-serif', fontSize: '22px', color: '#d9e5de', align: 'center',
     }).setOrigin(0.5);
     this.paint();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      for (const rig of this.visualRigs.values()) rig.destroy();
+      this.visualRigs.clear(); this.unitLabels.clear();
+    });
   }
 
   update(_time: number, delta: number): void {
     if (!document.hidden) this.battle.step(delta / 1000);
+    this.positionCamera();
     this.paint();
     this.onUpdate();
   }
@@ -47,6 +60,10 @@ export class BattleScene extends Phaser.Scene {
     this.base(DEMO.enemyBaseX, 0xe88a72, this.battle.enemyHp / DEMO.baseHp);
 
     const livingIds = new Set(this.battle.units.map(unit => unit.id));
+    const visualIds = new Set(this.battle.units.filter(unit => unit.profile && hasWeaponVisual(unit.profile.weaponId)).map(unit => unit.id));
+    for (const [id, rig] of this.visualRigs) {
+      if (!visualIds.has(id)) { rig.destroy(); this.visualRigs.delete(id); }
+    }
     for (const [id, label] of this.unitLabels) {
       if (!livingIds.has(id)) { label.destroy(); this.unitLabels.delete(id); }
     }
@@ -57,7 +74,21 @@ export class BattleScene extends Phaser.Scene {
       // Visual offset only: combat still uses the shared lane coordinate.
       const offset = DRAW_Y[unit.kind];
       const bob = Math.sin(this.battle.elapsed * 10 + unit.id) * 1.5 + offset;
+      const mapped = unit.profile && hasWeaponVisual(unit.profile.weaponId);
       g.fillStyle(0x060e10, 0.5).fillEllipse(unit.x, 280, 30, 8);
+      if (mapped && unit.profile) {
+        let rig = this.visualRigs.get(unit.id);
+        if (!rig) { rig = new WeaponRig(this, unit.x, 280 + offset, .65); this.visualRigs.set(unit.id, rig); }
+        let frame: number | null = null;
+        // Presentation observes the existing hit/windup clock; never schedules hits.
+        if (unit.engaged) {
+          if (unit.flash > 0) frame = 2;
+          else if (unit.attackIn <= Math.max(.12, unit.profile.windup)) frame = unit.attackIn < .10 ? 1 : 0;
+        }
+        const pose = visualPose(unit.profile.weaponId, unit.profile.gripMode, this.battle.elapsed * 1000, frame);
+        rig.root.setPosition(unit.x, 280 + offset);
+        rig.setPose(unit.profile.weaponId, unit.profile.gripMode, pose, friendly ? 'right' : 'left', unit.shieldHp ?? 0, unit.side);
+      } else {
       g.fillStyle(unit.flash > 0 ? 0xffefc6 : color);
       switch (unit.kind) {
         case 'sword': g.fillRoundedRect(unit.x - 10, 246 + bob, 20, 30, 3); break;
@@ -92,6 +123,7 @@ export class BattleScene extends Phaser.Scene {
       }
       if (unit.kind === 'shield') g.fillStyle(0xc1cbb2).fillRoundedRect(unit.x + direction * 13 - 5, 248 + bob, 10, 23, 3);
       if (unit.kind === 'gladiator') g.lineBetween(unit.x - direction * 8, 257 + bob, unit.x - direction * 19, 237 + bob);
+      }
       g.fillStyle(0x071115).fillRect(unit.x - 10, 218 + offset, 20, 4);
       g.fillStyle(color).fillRect(unit.x - 10, 218 + offset, 20 * unit.hp / unit.maxHp, 4);
       if (unit.profile?.shieldHp) {
@@ -103,10 +135,39 @@ export class BattleScene extends Phaser.Scene {
         label = this.add.text(unit.x, LABEL_Y[unit.kind], TEMP_R1D_UNITS[unit.kind].mark, { fontFamily: 'system-ui, sans-serif', fontSize: '10px', fontStyle: 'bold', color: friendly ? '#9eefd6' : '#ffc0a9', backgroundColor: '#071115', padding: { left: 2, right: 2, top: 1, bottom: 1 } }).setOrigin(0.5);
         this.unitLabels.set(unit.id, label);
       }
-      label.setText(unit.profile ? `X-${unit.profile.mark}` : TEMP_R1D_UNITS[unit.kind].mark).setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, LABEL_Y[unit.kind]);
+      label.setText(unit.profile ? `${friendly ? 'TA' : 'BOT'}·${unit.profile.mark}${mapped ? '' : ' ◇'}` : TEMP_R1D_UNITS[unit.kind].mark)
+        .setColor(friendly ? '#9eefd6' : '#ffc0a9').setPosition(unit.x, mapped ? 204 + offset : LABEL_Y[unit.kind]);
     }
     const labels = { ready: 'CHỜ LỆNH TRIỆU HỒI', running: '', won: 'THẮNG — GIỮ VỮNG CHIẾN TUYẾN', lost: 'THUA — THỬ MỘT NHỊP TRIỆU HỒI KHÁC' };
     this.message.setText(labels[this.battle.phase]);
+    this.game.canvas.dataset.rigs = JSON.stringify([...this.visualRigs].map(([id, rig]) => ({ id, ...rig.inspect() })));
+    this.game.canvas.dataset.rigCount = String(this.visualRigs.size);
+    this.game.canvas.dataset.unitCount = String(this.battle.units.length);
+    this.game.canvas.dataset.textureCount = String(this.textures.getTextureKeys().length);
+    this.game.canvas.dataset.displayObjects = String(this.children.length);
+  }
+
+  private positionCamera(): void {
+    const camera = this.cameras.main;
+    const mobile = this.scale.width < 700;
+    const zoom = this.view === 'overview' ? Math.min(this.scale.width / DEMO.width, this.scale.height / DEMO.height) : mobile ? 1.5 : 1.15;
+    camera.setZoom(zoom);
+    let x: number = DEMO.width / 2;
+    if (this.view === 'friendly') x = DEMO.playerBaseX + 65;
+    else if (this.view === 'enemy') x = DEMO.enemyBaseX - 65;
+    else if (this.view === 'follow') {
+      const allies = this.battle.units.filter(unit => unit.side === 'friendly');
+      const enemies = this.battle.units.filter(unit => unit.side === 'enemy');
+      const front = allies.length ? Math.max(...allies.map(unit => unit.x)) : undefined;
+      const threat = enemies.length ? Math.min(...enemies.map(unit => unit.x)) : undefined;
+      if (front !== undefined && threat !== undefined && threat - front < 210) x = (front + threat) / 2;
+      else x = front ?? threat ?? x;
+    }
+    const half = this.scale.width / zoom / 2;
+    if (half < DEMO.width / 2) x = Phaser.Math.Clamp(x, half, DEMO.width - half);
+    camera.centerOn(x, this.view === 'overview' ? DEMO.height / 2 : 230);
+    this.game.canvas.dataset.cameraView = this.view;
+    this.game.canvas.dataset.cameraZoom = String(zoom);
   }
 
   private base(x: number, color: number, health: number): void {

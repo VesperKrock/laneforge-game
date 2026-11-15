@@ -8,6 +8,11 @@ import { ACTIVE_WEAPONS, WEAPON_CATALOG, compileCombatBehavior, SINGLE_TARGET } 
 import { compileBuild, validateBuild, TEMP_R2A_CORE, TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES } from '../src/game/UnitBuild';
 import type { UnitBuild } from '../src/game/UnitBuild';
 
+interface RigReading {
+  id: number; weaponId: string; grip: string; facing: string; actorFrame: number; weaponFrame: number;
+  hands: number; shield: boolean; anchorError: number; supportError: number;
+}
+
 function build(weapon = 'axe', shield = false): UnitBuild {
   return { coreId: 'infantry_demo', equipment: { mainHand: weapon,
     offHand: shield ? { kind: 'shield', shieldId: 'demo_shield' } : { kind: 'empty' } } };
@@ -779,6 +784,151 @@ function observe(page: Page): string[] {
   page.on('request', r => { if (!r.url().startsWith('http://127.0.0.1:4173/') && !r.url().startsWith('data:')) errors.push('External request'); });
   return errors;
 }
+
+test.describe('R2W1 visual integration', () => {
+  test.use({ hasTouch: true });
+  for (const mobile of [false, true]) test(`${mobile ? 'mobile 390x844' : 'desktop'}: draft, real frames, grips, flip, keyboard and touch panel`, async ({ page }) => {
+    const errors = observe(page);
+    await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
+    await page.goto('./');
+    await page.locator('#workshop summary').focus(); await page.keyboard.press('Enter');
+    const canvas = page.locator('#workshop-preview canvas');
+    await expect(canvas).toHaveAttribute('data-visual-id', 'axe');
+    await page.locator('#still-preview').check();
+    const read = async (): Promise<RigReading> => JSON.parse((await canvas.getAttribute('data-visual'))!);
+    for (const [id, offhand, hands, grip] of [
+      ['short_sword', 'empty', 1, 'one_hand'], ['axe', 'shield', 1, 'one_hand'],
+      ['axe', 'empty', 2, 'two_hand_grip'], ['spear', 'empty', 2, 'fixed_two_hand'],
+      ['war_hammer', 'shield', 1, 'one_hand'],
+    ] as const) {
+      await page.locator('#custom-weapon').selectOption(id);
+      await page.locator('#custom-offhand').selectOption(offhand);
+      await expect.poll(read).toMatchObject({ weaponId: id, grip, hands, shield: offhand === 'shield', facing: 'right' });
+      const initial = await read();
+      expect(initial.anchorError).toBeLessThan(1e-9); expect(initial.supportError).toBeLessThan(1e-9);
+      await page.locator('#flip-preview').tap();
+      await expect.poll(read).toMatchObject({ weaponId: id, facing: 'left', hands });
+      await page.locator('#flip-preview').focus(); await page.keyboard.press('Space');
+      await expect.poll(read).toMatchObject({ facing: 'right' });
+      // Sample actual RAF-rendered poses; do not replace the scene clock or create fake hit events.
+      const frames = await page.evaluate(async () => {
+        const output: RigReading[] = [], c = document.querySelector<HTMLCanvasElement>('#workshop-preview canvas')!;
+        document.querySelector<HTMLButtonElement>('#try-attack')!.click();
+        const started = performance.now();
+        await new Promise<void>(resolve => {
+          const next = () => { output.push(JSON.parse(c.dataset.visual!)); performance.now() - started < 760 ? requestAnimationFrame(next) : resolve(); };
+          requestAnimationFrame(next);
+        });
+        return output;
+      });
+      expect([...new Set(frames.map(p => p.weaponFrame))].sort()).toEqual([0, 1, 2]);
+      expect(frames.every(p => p.hands === hands && p.anchorError < 1e-9 && p.supportError < 1e-9)).toBe(true);
+      await expect(page.locator('#summon')).toHaveAttribute('data-unit-type', 'sword');
+    }
+    await page.locator('[data-equipment="weapon"]').focus(); await page.keyboard.press('Enter');
+    await expect(page.locator('.equipment-choice')).toHaveCount(23);
+    await expect(page.locator('.equipment-picture canvas')).toHaveCount(4);
+    await expect(page.locator('.equipment-choice').filter({ hasText: 'Chưa có sprite' })).toHaveCount(19);
+    const spear = page.locator('[data-choice="spear"]');
+    await spear.focus(); await page.keyboard.press('Space');
+    await expect(page.locator('[data-choice="spear"]')).toBeFocused();
+    await expect(canvas).toHaveAttribute('data-visual-id', 'spear');
+    await expect(page.locator('#custom-offhand')).toHaveValue('empty');
+    await expect(page.locator('#custom-offhand option[value="shield"]')).toHaveJSProperty('disabled', true);
+    await page.locator('#apply-custom').tap();
+    for (const side of ['player', 'bot']) await expect(page.locator(`#${side}-slots .slot`).first()).toHaveAttribute('data-unit-type', 'custom:spear:0');
+    await page.locator('[data-equipment="armor"]').tap();
+    await expect(page.locator('#equipment-title')).toContainText('placeholder');
+    await page.locator('[data-choice="heavy_armor"]').tap();
+    await expect(canvas).toHaveAttribute('data-visual-id', 'spear');
+    await expect(page.locator('#draft-status')).toContainText('Nháp chưa áp dụng');
+    await page.locator('#close-equipment').click();
+    await expect(page.locator('[data-equipment="armor"]')).toBeFocused();
+    await page.locator('#workshop').screenshot({ path: `test-results/r2w1-workshop-${mobile ? 'mobile' : 'desktop'}.png` });
+    await expect(page.locator('.build-summary')).toHaveCount(5);
+    for (const button of await page.locator('.preview-actions button, .equipment-position > button').all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('every unmapped active weapon has explicit fallback; only the five approved PNGs load', async ({ page }) => {
+    const errors = observe(page), pngs = new Set<string>();
+    page.on('response', response => { if (/\.png(?:\?|$)/.test(response.url())) pngs.add(new URL(response.url()).pathname); });
+    await page.goto('./'); await page.locator('#workshop summary').click();
+    const mapped = new Set(['short_sword', 'axe', 'spear', 'war_hammer']);
+    for (const w of ACTIVE_WEAPONS) {
+      await page.locator('#custom-weapon').selectOption(w.id);
+      await expect(page.locator('#workshop-preview canvas')).toHaveAttribute('data-visual-id', w.id);
+      await expect(page.locator('#workshop-preview canvas')).toHaveAttribute('data-fallback', String(!mapped.has(w.id)));
+      if (!mapped.has(w.id)) { await expect(page.locator('#visual-caption')).toContainText('Chưa có sprite'); await expect(page.locator('#try-attack')).toBeDisabled(); }
+    }
+    expect(pngs.size).toBe(5); expect(errors).toEqual([]);
+  });
+
+  for (const [weapon, shield, mobile] of [
+    ['short_sword', false, false], ['axe', true, false], ['axe', false, true],
+    ['spear', false, true], ['war_hammer', true, false],
+  ] as const) test(`real clock ${weapon}/${shield ? 'shield' : 'empty'}: both teams, attack, camera and rig cleanup`, async ({ page }) => {
+    const errors = observe(page);
+    await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
+    await page.goto('./'); await page.locator('#workshop summary').click();
+    for (let slot = 0; slot < 5; slot++) {
+      await page.locator('#custom-slot').selectOption(String(slot));
+      await page.locator('#custom-weapon').selectOption(weapon); await page.locator('#custom-offhand').selectOption(shield ? 'shield' : 'empty');
+      await page.locator('#apply-custom').click();
+    }
+    await page.locator('#workshop summary').click();
+    const canvas = page.locator('#battlefield canvas');
+    const textureCount = await canvas.getAttribute('data-texture-count');
+    await page.locator('#start').click(); await page.locator('#summon').click();
+    const seen = new Set<string>(), frames = new Set<number>(); let maxUnits = 0, captured = false, shieldSeen = false;
+    const started = Date.now();
+    while (Date.now() - started < 14000) {
+      const result = await canvas.evaluate(c => ({ rigs: JSON.parse(c.dataset.rigs!) as RigReading[], count: Number(c.dataset.unitCount), objects: Number(c.dataset.displayObjects), textures: Number(c.dataset.textureCount) }));
+      maxUnits = Math.max(maxUnits, result.count);
+      expect(result.rigs.length).toBe(result.count);
+      expect(new Set(result.rigs.map(r => r.id)).size).toBe(result.count);
+      expect(result.objects).toBe(2 + result.count * 2);
+      // Phaser Text owns one canvas texture per unit label; sprite sheets stay shared.
+      expect(result.textures).toBe(Number(textureCount) + result.count);
+      for (const rig of result.rigs) {
+        expect(rig.weaponId).toBe(weapon); seen.add(rig.facing); frames.add(rig.weaponFrame);
+        expect(rig.anchorError).toBeLessThan(1e-9); expect(rig.supportError).toBeLessThan(1e-9);
+        expect(rig.hands).toBe(weapon === 'spear' || weapon === 'axe' && !shield ? 2 : 1);
+        if (!shield) expect(rig.shield).toBe(false); else if (rig.shield) shieldSeen = true;
+      }
+      if (!captured && result.rigs.some(r => r.facing === 'right') && result.rigs.some(r => r.facing === 'left') && Number(await page.locator('#hits').textContent()) > 0) {
+        await page.locator('.battle-panel').screenshot({ path: `test-results/r2w1-combat-${weapon}-${shield ? 'shield' : 'empty'}-${mobile ? 'mobile' : 'desktop'}.png` }); captured = true;
+      }
+      await page.locator('#player-slots .slot').evaluateAll(nodes => { const ready = nodes.find(n => !(n as HTMLButtonElement).disabled); if (ready) (ready as HTMLButtonElement).click(); });
+      await page.waitForTimeout(40);
+    }
+    expect([...seen].sort()).toEqual(['left', 'right']); expect([...frames].sort()).toEqual([0, 1, 2]);
+    expect(captured).toBe(true); expect(maxUnits).toBeGreaterThanOrEqual(3);
+    if (shield) expect(shieldSeen).toBe(true);
+    await expect(canvas).toHaveAttribute('data-camera-zoom', mobile ? '1.5' : '1.15');
+    for (const view of ['friendly', 'enemy', 'overview', 'follow']) {
+      await page.locator(`[data-view="${view}"]`).tap(); await expect(canvas).toHaveAttribute('data-camera-view', view);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (let cycle = 0; cycle < 3; cycle++) {
+      await page.locator('#start').click();
+      await expect(canvas).toHaveAttribute('data-rig-count', '0');
+      await expect(canvas).toHaveAttribute('data-display-objects', '2');
+      await expect(canvas).toHaveAttribute('data-texture-count', textureCount!);
+      await page.locator('#summon').click(); await expect(canvas).toHaveAttribute('data-rig-count', '1');
+    }
+    await page.locator('#setup').click(); await expect(canvas).toHaveAttribute('data-rig-count', '0');
+    await page.locator('#workshop summary').click(); await page.locator('#custom-slot').selectOption('0');
+    await page.locator('#custom-weapon').selectOption('club'); await page.locator('#apply-custom').click();
+    await page.locator('#start').click(); await page.locator('#summon').click();
+    await expect(canvas).toHaveAttribute('data-rig-count', '0'); // ID 0 is reused, now with fallback art.
+    await expect(canvas).toHaveAttribute('data-unit-count', '1');
+    await expect(canvas).toHaveAttribute('data-texture-count', String(Number(textureCount) + 1));
+    await test.info().attach('r2w1-live-rigs', { body: JSON.stringify({ weapon, shield, mobile, maxUnits, textureCount, frames: [...frames], facings: [...seen] }), contentType: 'application/json' });
+    expect(errors).toEqual([]);
+  });
+});
 
 test('R2A.1: the R1D strategy outcome depends on input schedule, with unchanged real economy and combat', async () => {
   const cases = [{ gap: .1, phase: 'won', digest: '274af461da88d87c96054cebe8b56cb7ee5544f2258250fe1364a29b700fcb86' },

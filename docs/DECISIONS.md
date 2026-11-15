@@ -140,6 +140,28 @@ Security Gate `PASS_HEURISTIC`: 26 candidate / 26 tracked / 17 ignore checks / 0
 - Cảnh báo bundle Phaser >500 kB có từ baseline, chưa tối ưu trong R2C. Browser mobile là viewport/touch giả lập, chưa phải QA thiết bị thật. Security Gate là heuristic, không phải chứng minh tuyệt đối không có secret/PII.
 - Bản local cần Owner duyệt manifest và SHA-256 cuối; không suy ra quyền phát hành từ R2B đã công bố.
 
+## R2W1 — Visual Workshop integration, local preparation, 15/11/2026
+
+- Owner đã review R2W0 và đồng ý hướng thiết kế Xưởng trực quan: năm slot, nhân vật trung tâm, bốn vị trí trang bị, chọn để xem trước và xác nhận để áp dụng. Tiếp tục từ phần visual đã kiểm chứng, không viết lại prototype từ đầu.
+- **Xác nhận quyền sử dụng:** Owner xác nhận có toàn quyền sử dụng và đưa các hình ảnh đã cung cấp vào dự án. Ghi nhận và chấp nhận xác nhận này làm cơ sở tích hợp R2W1; việc thiếu metadata license trong archive không còn là blocker. Đây là xác nhận của Owner, không mô tả thành một cuộc xác minh giấy phép độc lập của Codex.
+- Phạm vi asset dự kiến chỉ Actor1_1 và ShortSword1 / Axe1 / Spear1 / elemental_hammer_1 đã review; mapping lần lượt short_sword / axe / spear / war_hammer. Các vũ khí khác giữ fallback rõ ràng. Giáp/phụ kiện chưa có sprite vẫn dùng tên và placeholder.
+- Visual configuration và rig nằm ngoài UnitBuild compiler/combat behavior. Hướng hoàn thiện: grip hai tay Giáo, phân biệt Rìu một/hai tay, Khiên chỉ với grip phù hợp; camera mobile giữ khả năng nhận diện, không đổi simulation hoặc thời điểm gây sát thương.
+- **Checkpoint bắt buộc của Owner:** trước khi áp dụng bất kỳ thay đổi Security Gate nào, trình exact paths và exact diff để Owner duyệt riêng. Gate hiện chỉ nhận source text và artifact JS/CSS; PNG cần allowlist có kiểm tra bytes/hash riêng. Đang dừng ở bước đề xuất Gate, chưa áp dụng patch, chưa đưa PNG vào source và chưa tuyên bố triển khai/kiểm thử R2W1 hoàn tất.
+- Quyền làm việc chỉ LOCAL. Giữ archive, prototype và bằng chứng R2W0; không stage, commit, push hoặc deploy. Phê duyệt Gate sau này không đồng nghĩa với phê duyệt phát hành.
+
+## R2W1 — cập nhật phê duyệt có điều kiện, 15/11/2026
+
+- Phê duyệt mới của Owner thay thế giới hạn LOCAL và checkpoint đang chờ ở ghi chép R2W1 phía trên. Owner xác nhận toàn quyền **sử dụng và phát hành** hình ảnh đã cung cấp. Đây là xác nhận của Owner được chấp nhận cho dự án, không phải xác minh độc lập tác giả/license của từng PNG.
+- Owner duyệt exact Security Gate patch có SHA-256 `c3b2f5f8d9fa12619b0d817ffe2f4e68e8d40898d5bcbd032f82bef4a5b9ae97`. Gate chỉ thêm hai module visual và năm PNG có đường dẫn, byte count, kích thước và SHA-256 cố định; kiểm tra cả source, index và dist. Không có wildcard asset, tắt scanner hoặc thay allowlist khác.
+- Tái sử dụng cấu trúc frame, hand anchors, pivot, mapping và layout đã review của R2W0. Actor1_1 là sheet 576×384, 54 ô 64×64, hướng gốc trái; bốn weapon là 288×64, ba ô 96×64. Mapping: ShortSword1 → `short_sword`; Axe1 → `axe`; Spear1 → `spear`; elemental_hammer_1 → `war_hammer`. Chỉ năm PNG, tổng 29.727 bytes, được đưa vào bundle. Archive gốc và evidence giữ nguyên ngoài nguồn public.
+- `WeaponVisual` sở hữu dữ liệu hình, pivot, layer, tỉ lệ, idle/attack và flip; không import compiler hoặc combat model. `WorkshopScene` nhận profile để preview. `BattleScene` đọc unit/profile hiện hữu, tái sử dụng rig theo unit ID và hủy khi unit biến mất hoặc ID đổi về fallback; animation không gọi gây sát thương, không quyết định nhịp đòn.
+- Giáo có hai điểm nắm dọc cán; Rìu 2H có cán phóng lớn về mặt trình bày và hai tay giữ trước ngực, khác Rìu một tay + Khiên. Miếng găng foreground lấy từ actor đã duyệt, không thêm PNG. Rìu 2H dùng pose thân braced và ba frame vũ khí thật cho động tác; không tuyên bố có ba pose cơ thể khác nhau. Frame thrust 4/5 của actor và frame 1/2 của Giáo trùng pixel; giữ recovery hold đúng dữ liệu. Khiên là hình khối, gắn tay phụ, chỉ hiện khi grip một tay và barrier còn HP.
+- Xưởng giữ năm slot độc lập và semantics R2D: thay chọn chỉ đổi nháp/preview; Áp dụng build mới thay slot; chuyển slot bỏ nháp cũ và thông báo; restore chỉ slot đang sửa; replay giữ build, Về chuẩn bị cho sửa tiếp, reload về preset. Panel thumbnail có bốn mẫu thật và nhãn thiếu sprite cho 19 active còn lại; select gốc hỗ trợ bàn phím. Giáp/phụ kiện chỉ tên và placeholder, không giả thay ngoại hình.
+- Mobile 390×844 dùng camera cận cảnh zoom 1.5 và các nút theo giao tranh/căn cứ ta/căn cứ Bot/toàn tuyến; desktop zoom 1.15. Tọa độ mô phỏng, range, collision, AI và luật thắng thua giữ nguyên. Góc nhìn toàn tuyến là lựa chọn riêng; mặc định theo giao tranh để nhận diện nhân vật. Màu vòng chân, nhãn TA/BOT và thanh HP phân biệt phe.
+- Bảo toàn 23 active / 43 catalogue, năm custom slot, ba giáp/ba phụ kiện, barrier, bonus +30%, Giáo kite và Búa AOE. Không sửa Battle, UnitBuild hoặc WeaponCatalog; không thêm dependency, không triển khai R2E hoặc mở vũ khí mới.
+- Quyền stage/commit/push fast-forward/Pages chỉ có hiệu lực sau khi toàn bộ tiêu chí Owner PASS: build/typecheck, full regression 1 và 2 workers, visual QA, console/network, lifecycle, audit 0, Gate source/staged/dist, diff check và manifest cuối đúng phạm vi. CI/Pages và bytes public phải được xác minh riêng trước khi báo RELEASED.
+- OPEN có chủ đích: 19 active/preset chưa có sprite riêng; giáp/phụ kiện chưa có ngoại hình; Khiên hình khối; Búa elemental không suy ra phép/hiệu ứng gameplay. QA mobile trình duyệt/touch giả lập chưa thay thế thiết bị thật. Bundle Phaser lớn và balance TEMP là giới hạn kế thừa. Đây không phải nghiệm thu R2E hay full inventory.
+
 ## OPEN / PROPOSED
 
 | ID | Cần chốt | Hiện trạng |
