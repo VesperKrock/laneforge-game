@@ -1,6 +1,12 @@
 # Roadmap LaneForge — Modular Unit + Weapon System
 
-## Trạng thái hiện tại — R2W1 Visual Workshop
+## Trạng thái hiện tại — public R2W1; R2W2 + R2W3 + R2W4 local
+
+Cập nhật local ngày 16/11/2026, baseline public `0661f62f8a47f2a6744c1f926bdd80bc66d632b9`: R2W2 đã tích hợp năm ngoại hình độc lập cho năm slot, validator/snapshot giữ tương thích build cũ và rig dùng anchor riêng cho từng actor. Không thay combat. Full regression 176/176 PASS với 1 worker và 176/176 PASS với 2 workers, không skip/retry/flaky; build/typecheck, Gate và audit đều đạt. **READY_FOR_REVIEW — LOCAL ONLY**, chưa phát hành.
+
+R2W3: **READY_FOR_OWNER_REVIEW — LOCAL ONLY**. Owner đã duyệt có điều kiện exact Security Gate patch ngày 16/11/2026; hash/diff khớp, chỉ thêm 18 PNG / 175.524 bytes, không đổi scanner. Registry có 22/23 vũ khí active dùng sprite trong Xưởng/combat; Bardiche **OPEN_ART** tiếp tục fallback. Targeted 16/16 và full regression 189/189 với 1 worker, 189/189 với 2 workers đều PASS, không skip/retry/flaky. Năm actor × 36 kiểu cầm × tám trạng thái được kiểm tra; browser desktop/mobile, lifecycle, build/typecheck, Gate source/dist và audit đạt. Index trống; không tuyên bố nghiệm thu staged bytes. R2W4 đã triển khai polish LOCAL: gom/phân hàng nhãn và HP theo phe, Khiên Graphics gắn tay phụ, preset hình học có dấu nhận biết và focus/touch Xưởng. Kết quả nghiệm thu cuối nằm trong hồ sơ Owner Review local; chưa được duyệt phát hành. Chồng hình vật lý, layer giáp/phụ kiện và QA điện thoại thật còn OPEN. Phê duyệt asset/kiểm thử không phải phê duyệt phát hành.
+
+Demo, contact sheet, ảnh/video và manifest kiểm thử được giữ trong vùng ignored local theo yêu cầu Owner. Mọi stage/commit/push/deploy đều bị cấm trong đợt này; cần prompt phát hành riêng.
 
 Định hướng Owner ghi ngày 02/11/2026; cập nhật R2W1 ngày 15/11/2026: người chơi lắp quân trong Xưởng có nhân vật preview, rồi áp dụng và thử đội hình trong trận một lane. R2D giữ ba giáp và ba phụ kiện cộng chỉ số TEMP; R2W1 chỉ thêm trình bày và thao tác Xưởng. Thẻ hỗ trợ vẫn là hướng tương lai. Tên LaneForge trong code giữ nguyên; Legend Army là tên tài liệu thiết kế nguồn. Các bước tương lai dưới đây là **PROPOSED**, chưa phải tính năng đã hoàn thành hoặc cam kết phát hành.
 

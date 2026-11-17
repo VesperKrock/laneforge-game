@@ -13,7 +13,7 @@
     <main class="shell">
       <header class="masthead">
         <a class="brand" href="./" aria-label="LaneForge, trang chính"><span class="brand-mark" aria-hidden="true">LF</span>LANEFORGE</a>
-        <span class="build-tag">R2W1 <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
+        <span class="build-tag">R2W4 LOCAL <span aria-hidden="true">/</span> R1D MẶC ĐỊNH</span>
       </header>
 
       <section class="intro" aria-labelledby="title">
@@ -27,7 +27,7 @@
         <p id="selection-count" role="status">Đã chọn 5/5</p>
         <details id="workshop" class="workshop">
           <summary>Xưởng lắp ráp · năm Unit độc lập</summary>
-          <p class="workshop-help">Tùy chọn: lắp từ một đến năm Unit, trộn Preset/Custom, được trùng vũ khí hoặc bản thiết kế. Bot dùng cùng đội hình. 23 vũ khí cận chiến theo năm nhóm, 20 món còn lại chỉ có trong danh mục thiết kế.</p>
+          <p class="workshop-help">Tùy chọn: lắp từ một đến năm Unit, trộn Preset/Custom, được trùng vũ khí hoặc bản thiết kế. Bot dùng cùng đội hình. 23 vũ khí cận chiến theo năm nhóm, 20 món còn lại chỉ có trong danh mục thiết kế. Preset dùng hình học ◇; Custom có 5 ngoại hình và 22 sprite vũ khí. Bardiche chưa có sprite.</p>
           <fieldset id="workshop-controls">
             <legend>Năm slot dùng trong trận</legend>
             <div id="slot-summaries" class="slot-summaries" role="group" aria-label="Năm bản thiết kế đã áp dụng"></div>
@@ -35,6 +35,9 @@
             <div class="visual-workshop">
               <section class="warrior-preview" aria-label="Chiến binh đang lắp ráp">
                 <p class="eyebrow">RÈN NÊN CHIẾN BINH</p>
+                <div class="appearance-heading"><label for="custom-appearance">Chọn nhân vật</label><select id="custom-appearance" aria-describedby="appearance-note"></select></div>
+                <div id="appearance-choices" role="group" aria-label="Năm ngoại hình nhân vật"></div>
+                <p id="appearance-note" class="placeholder-note">Chỉ đổi ngoại hình · trang phục có sẵn trong hình nhân vật.</p>
                 <div id="workshop-preview" role="img" aria-label="Preview toàn thân với vũ khí bản nháp"></div>
                 <p id="visual-caption" class="visual-caption"></p>
                 <div class="preview-actions"><button id="try-attack" class="setup-button" type="button">Thử đòn đánh ↗</button><button id="flip-preview" class="setup-button" type="button">↔ Đảo hướng</button><label><input id="still-preview" type="checkbox"> Đứng yên</label></div>
@@ -44,10 +47,10 @@
                   <div class="equipment-position"><button type="button" data-equipment="armor" aria-expanded="false" aria-controls="equipment-panel">Giáp <span>＋</span></button><label><span class="sr-only">Chọn giáp</span><select id="custom-armor"><option value="">Không giáp</option></select></label></div>
                   <div class="equipment-position"><button type="button" data-equipment="accessory" aria-expanded="false" aria-controls="equipment-panel">Phụ kiện <span>＋</span></button><label><span class="sr-only">Chọn phụ kiện</span><select id="custom-accessory"><option value="">Không phụ kiện</option></select></label></div>
                 </div>
-                <p class="placeholder-note">Giáp/phụ kiện: nhãn placeholder, chưa đổi ngoại hình. Khiên dùng hình khối.</p>
+                <p id="equipment-summary" class="placeholder-note"></p>
               </section>
               <section class="equipment-editor" aria-label="Lựa chọn trang bị và xác nhận">
-                <div id="equipment-panel" hidden><div class="panel-title"><h3 id="equipment-title">Vũ khí chính</h3><button id="close-equipment" type="button" class="setup-button" aria-label="Đóng danh sách trang bị">×</button></div><div id="equipment-choices"></div></div>
+                <div id="equipment-panel" hidden><div class="panel-title"><h3 id="equipment-title" tabindex="-1">Vũ khí chính</h3><button id="close-equipment" type="button" class="setup-button" aria-label="Đóng danh sách trang bị">×</button></div><div id="equipment-choices"></div></div>
                 <h3>Thông số bản nháp</h3><dl id="visual-stats"></dl>
                 <p id="visual-behavior"></p><p id="grip-note"></p>
                 <p id="draft-status" role="status"></p>
@@ -81,6 +84,7 @@
         <div class="base-readouts"><span>CĂN CỨ PLAYER <strong id="player-hp">—</strong></span><span>CĂN CỨ BOT <strong id="enemy-hp">—</strong></span></div>
         <div id="battlefield" role="img" aria-label="Hai căn cứ ở hai đầu một đường ngang. Quân ta màu xanh, quân địch màu đỏ."></div>
         <nav id="camera-controls" aria-label="Góc nhìn chiến trường"><button type="button" data-view="follow" aria-pressed="true">Theo giao tranh</button><button type="button" data-view="friendly" aria-pressed="false">Căn cứ ta</button><button type="button" data-view="enemy" aria-pressed="false">Căn cứ Bot</button><button type="button" data-view="overview" aria-pressed="false">Toàn tuyến</button></nav>
+        <p class="battle-legend">TA xanh · BOT đỏ · ◇ hình học. ×N = nhóm quân sát nhau; thanh màu là tổng HP thân, thanh xanh lam là tổng HP Khiên. Hình quân vẫn có thể chồng nhau.</p>
         <div class="battle-foot"><span id="battle-event">Bấm Bắt đầu để đấu với Bot.</span><span>Lính ta: <b id="allies">0</b> <span aria-hidden="true">·</span> Đòn trúng: <b id="hits">0</b></span></div>
       </section>
 

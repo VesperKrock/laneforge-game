@@ -4,6 +4,8 @@ import type { Side, UnitKind } from './game/Battle';
 import { BattleScene } from './game/BattleScene';
 import { WorkshopScene } from './game/WorkshopScene';
 import { WEAPON_VISUALS, hasWeaponVisual } from './game/WeaponVisual';
+import { APPEARANCES, DEFAULT_APPEARANCE, appearanceName } from './game/Appearance';
+import { CHARACTER_VISUALS } from './game/CharacterVisual';
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, describeCombatBehavior } from './game/WeaponCatalog';
 import { compileBuild, TEMP_R2D_ARMORS, TEMP_R2D_ACCESSORIES } from './game/UnitBuild';
 import type { CompiledUnitProfile, UnitBuild } from './game/UnitBuild';
@@ -25,7 +27,23 @@ const customWeapon = element<HTMLSelectElement>('custom-weapon');
 const customOffhand = element<HTMLSelectElement>('custom-offhand');
 const customArmor = element<HTMLSelectElement>('custom-armor');
 const customAccessory = element<HTMLSelectElement>('custom-accessory');
+const customAppearance = element<HTMLSelectElement>('custom-appearance');
 const workshopScene = new WorkshopScene();
+for (const appearance of APPEARANCES) {
+  const option = document.createElement('option'); option.value = appearance.id; option.textContent = appearance.name;
+  customAppearance.append(option);
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'appearance-choice';
+  button.dataset.appearance = appearance.id; button.setAttribute('aria-pressed', 'false');
+  const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64; canvas.setAttribute('aria-hidden', 'true');
+  const image = new Image(); image.onload = () => {
+    const context = canvas.getContext('2d')!; context.imageSmoothingEnabled = false;
+    const visual = CHARACTER_VISUALS[appearance.id], [w, h] = visual.frame, frame = visual.idle[0];
+    context.drawImage(image, frame % visual.layout[0] * w, Math.floor(frame / visual.layout[0]) * h, w, h, 0, 0, 64, 64);
+  }; image.src = CHARACTER_VISUALS[appearance.id].source;
+  const name = document.createElement('span'); name.textContent = appearance.name; button.append(canvas, name);
+  button.addEventListener('click', () => { customAppearance.value = appearance.id; customAppearance.dispatchEvent(new Event('change', { bubbles: true })); });
+  element('appearance-choices').append(button);
+}
 const equipmentControls = { weapon: customWeapon, offhand: customOffhand, armor: customArmor, accessory: customAccessory };
 let selectedEquipment: keyof typeof equipmentControls | null = null;
 const equipmentButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-equipment]')];
@@ -71,6 +89,10 @@ function renderEquipmentChoices(): void {
 for (const button of equipmentButtons) button.addEventListener('click', () => {
   const key = button.dataset.equipment as keyof typeof equipmentControls;
   selectedEquipment = selectedEquipment === key ? null : key; renderEquipmentChoices();
+  if (selectedEquipment) {
+    element('equipment-title').focus({ preventScroll: true });
+    element('equipment-panel').scrollIntoView({ block: 'nearest' });
+  }
 });
 element('close-equipment').addEventListener('click', () => {
   const previous = selectedEquipment; selectedEquipment = null; renderEquipmentChoices();
@@ -121,7 +143,7 @@ for (const family of ['one_hand_slash', 'one_hand_pierce', 'one_hand_blunt', 'po
 }
 customWeapon.value = 'axe';
 function draftBuild(): UnitBuild {
-  return { coreId: 'infantry_demo', equipment: { mainHand: customWeapon.value,
+  return { coreId: 'infantry_demo', appearanceId: customAppearance.value, equipment: { mainHand: customWeapon.value,
     armor: customArmor.value || null, accessory: customAccessory.value || null,
     offHand: customOffhand.value === 'shield' ? { kind: 'shield', shieldId: 'demo_shield' } : { kind: 'empty' },
   } };
@@ -132,15 +154,17 @@ function previewBuild(): void {
   customOffhand.querySelector<HTMLOptionElement>('option[value="shield"]')!.disabled = fixed;
   if (fixed) customOffhand.value = 'empty';
   const p = compileBuild(draftBuild());
+  document.querySelectorAll<HTMLButtonElement>('[data-appearance]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.appearance === p.appearanceId)));
   element('grip-note').textContent = p.gripMode === 'fixed_two_hand' ? 'Vũ khí hai tay cố định · chiếm cả hai tay, không mang Khiên; không cộng thêm 30%.'
     : p.gripMode === 'two_hand_grip' ? 'Cầm hai tay (+30% damage vũ khí) · không mang Khiên.' : 'Một tay · không có bonus 30%.';
   element('custom-stats').textContent = `Bộ Binh demo · ${equipmentLabel(p)} · ${p.role} · HP thân ${p.hp} / HP Khiên ${p.shieldHp} · Damage mỗi hit ${p.damage} = lõi ${p.damagePhysicalCore} + vũ khí ${p.damagePhysicalWeaponBase} + bonus ${p.weaponBonus} (làm tròn) · Interval ${p.attackInterval}s · Windup ${p.windup}s · Tầm ${p.attackRange} · Tốc ${p.speed} · Giá ${p.cost} Vàng · CD ${p.cooldown}s`;
   element('custom-behavior').textContent = describeCombatBehavior(p.behavior);
   element('visual-behavior').textContent = describeCombatBehavior(p.behavior);
+  element('equipment-summary').textContent = `${equipmentLabel(p)} · HP Khiên ${p.shieldHp}. Giáp/phụ kiện chỉ đổi chỉ số, chưa có lớp hình riêng.`;
   element('visual-stats').innerHTML = [['HP', p.hp], ['Damage', p.damage], ['Speed', p.speed], ['Cost', p.cost], ['CD', `${p.cooldown}s`]]
     .map(([name, value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('');
   const mapped = hasWeaponVisual(p.weaponId);
-  element('visual-caption').textContent = mapped ? `${WEAPON_VISUALS[p.weaponId].name} · ${gripLabel(p)}` : `${WEAPON_CATALOG.find(item => item.id === p.weaponId)!.sourceName} · Chưa có sprite — hình học trong trận`;
+  element('visual-caption').textContent = `${appearanceName(p.appearanceId)} · ` + (mapped ? `${WEAPON_VISUALS[p.weaponId].name} · ${gripLabel(p)}` : `${WEAPON_CATALOG.find(item => item.id === p.weaponId)!.sourceName} · Chưa có sprite — hình học trong trận`);
   element<HTMLButtonElement>('try-attack').disabled = !mapped;
   workshopScene.setProfile(p);
   renderEquipmentChoices();
@@ -153,6 +177,7 @@ function loadEditor(notice = ''): void {
   customOffhand.value = profile?.build.equipment.offHand.kind ?? 'empty';
   customArmor.value = profile?.build.equipment.armor ?? '';
   customAccessory.value = profile?.build.equipment.accessory ?? '';
+  customAppearance.value = profile?.appearanceId ?? DEFAULT_APPEARANCE;
   previewBuild();
   loadedDraft = JSON.stringify(draftBuild());
   draftDirty = false;
@@ -168,7 +193,7 @@ function selectEditor(slot: number): void {
 customSlot.addEventListener('change', () => {
   if (battle.phase === 'ready') selectEditor(Number(customSlot.value));
 });
-for (const control of [customWeapon, customOffhand, customArmor, customAccessory]) control.addEventListener('change', () => {
+for (const control of [customWeapon, customOffhand, customArmor, customAccessory, customAppearance]) control.addEventListener('change', () => {
   if (battle.phase !== 'ready') return;
   previewBuild();
   draftDirty = JSON.stringify(draftBuild()) !== loadedDraft;
@@ -239,7 +264,7 @@ function updateUi(): void {
   const ready = { friendly: slots.friendly.map((_slot, index) => battle.canSummon('friendly', index)), enemy: slots.enemy.map((_slot, index) => battle.canSummon('enemy', index)) };
   const highlighted = battle.botChoice && battle.elapsed - battle.botChoice.at < 1 ? battle.botChoice.slot : -1;
   const customs = battle.loadout.map((_, slot) => battle.getCustomProfile(slot));
-  const customKey = customs.map(p => p ? `${p.weaponId}:${p.shieldHp}` : '').join(',');
+  const customKey = customs.map(p => p ? JSON.stringify(p.build) : '').join(',');
   const ui = [battle.phase, customKey, editorSlot, draftDirty, editorNotice, selected.join(','), battle.loadout.join(','), Math.floor(battle.gold.friendly), Math.floor(battle.gold.enemy), ...remaining.friendly, ...remaining.enemy, ...ready.friendly, ...ready.enemy, highlighted, battle.botChoice?.at, friendlyCount, battle.hits, battle.playerHp, battle.enemyHp, battle.event].join('|');
   if (ui === previousUi) return;
   previousUi = ui;
@@ -267,7 +292,8 @@ function updateUi(): void {
     button.setAttribute('aria-pressed', String(slot === editorSlot));
     button.querySelector('strong')!.textContent = `Slot ${slot + 1} · ${custom ? 'Custom' : 'Preset'}`;
     button.querySelector('span')!.textContent = p.name;
-    button.querySelector('small')!.textContent = `${custom ? `${gripLabel(custom)} · ${equipmentLabel(custom)}` : 'Trang bị preset cố định'} · ${p.cost} Vàng · CD ${p.cooldown}s`;
+    button.dataset.appearanceId = custom?.appearanceId ?? '';
+    button.querySelector('small')!.textContent = `${custom ? `${appearanceName(custom.appearanceId)} · ${gripLabel(custom)} · ${equipmentLabel(custom)}` : 'Trang bị preset cố định'} · ${p.cost} Vàng · CD ${p.cooldown}s`;
     button.querySelector('b')!.textContent = slot === editorSlot ? 'Đang sửa slot này' : `Sửa slot ${slot + 1}`;
   });
   selectionCount.textContent = battle.phase === 'ready' ? `Đã chọn ${selected.length}/5 · Bỏ một loại để thay quân.` : 'Đội hình đã khóa · Chơi lại giữ nguyên năm slot.';
@@ -279,13 +305,16 @@ function updateUi(): void {
     const custom = customs[index];
     const kind = custom ? `custom:${custom.weaponId}:${custom.shieldHp}` : battle.loadout[index];
     const profile = battle.getSlotProfile(index);
-    if (button.dataset.unitType !== kind) {
+    const buildKey = custom ? JSON.stringify(custom.build) : kind;
+    if (button.dataset.buildKey !== buildKey) {
+      button.dataset.buildKey = buildKey;
       button.dataset.unitType = kind;
+      button.dataset.appearanceId = custom?.appearanceId ?? '';
       button.querySelector('.unit-symbol')!.textContent = profile.mark;
       button.querySelector('strong')!.textContent = profile.name;
       button.querySelector('.slot-price')!.textContent = `${profile.cost} Vàng · ${profile.cooldown}s CD`;
       const note = button.querySelector('.slot-note');
-      if (note) note.textContent = `${custom ? `Custom · HP Khiên ${custom.shieldHp}` : 'Preset'} · HP ${profile.hp} · DMG ${profile.damage} · Nhịp ${profile.attackInterval}s · Tầm ${profile.attackRange} · Tốc ${profile.speed}`;
+      if (note) note.textContent = `${custom ? `Custom · ${appearanceName(custom.appearanceId)} · HP Khiên ${custom.shieldHp}` : 'Preset'} · HP ${profile.hp} · DMG ${profile.damage} · Nhịp ${profile.attackInterval}s · Tầm ${profile.attackRange} · Tốc ${profile.speed}`;
     }
     const state = battle.phase !== 'running' ? 'inactive' : battle.cooldowns[side][index] > 0 ? 'cooling' : battle.gold[side] < profile.cost ? 'insufficient' : ready[side][index] ? 'ready' : 'blocked';
     button.dataset.state = state;

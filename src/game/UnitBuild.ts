@@ -1,5 +1,7 @@
 import { ACTIVE_WEAPONS, WEAPON_CATALOG, FAMILY_LABELS, compileCombatBehavior } from './WeaponCatalog';
 import type { AnimationFamily, WeaponDefinition, CombatBehavior } from './WeaponCatalog';
+import { DEFAULT_APPEARANCE, isAppearanceId } from './Appearance';
+import type { AppearanceId } from './Appearance';
 
 // Experimental numbers, not the source author's balance data.
 export const TEMP_R2A_CORE = Object.freeze({ id: 'infantry_demo', name: 'Bộ Binh demo', hp: 60, speed: 85, damagePhysical: 0, cost: 10 });
@@ -26,10 +28,11 @@ export interface EquipmentLoadout {
   readonly armor?: string | null;
   readonly accessory?: string | null;
 }
-export interface UnitBuild { readonly coreId: string; readonly equipment: EquipmentLoadout }
+export interface UnitBuild { readonly coreId: string; readonly appearanceId?: string; readonly equipment: EquipmentLoadout }
 export type GripMode = 'one_hand' | 'two_hand_grip' | 'fixed_two_hand';
 export interface CompiledUnitProfile {
   readonly build: UnitBuild;
+  readonly appearanceId: AppearanceId;
   readonly weaponId: string;
   readonly family: AnimationFamily;
   readonly gripMode: GripMode;
@@ -59,8 +62,10 @@ const hasOnly = (value: Record<string, unknown>, keys: string[]) => Object.getPr
 
 export function validateBuild(build: unknown): Readonly<{ valid: boolean; errors: readonly string[] }> {
   const errors: string[] = [];
-  if (!object(build) || !hasOnly(build, ['coreId', 'equipment']) || build.coreId !== TEMP_R2A_CORE.id) errors.push('Lõi không hợp lệ; R2A chỉ có Bộ Binh demo.');
-  const equipment = object(build) && hasOnly(build, ['coreId', 'equipment']) ? build.equipment : undefined;
+  const safeBuild = object(build) && hasOnly(build, ['coreId', 'equipment', 'appearanceId']) ? build : undefined;
+  if (!safeBuild || safeBuild.coreId !== TEMP_R2A_CORE.id) errors.push('Lõi không hợp lệ; R2A chỉ có Bộ Binh demo.');
+  if (safeBuild && Object.hasOwn(safeBuild, 'appearanceId') && !isAppearanceId(safeBuild.appearanceId)) errors.push('Ngoại hình không hợp lệ.');
+  const equipment = safeBuild?.equipment;
   if (!object(equipment) || !hasOnly(equipment, ['mainHand', 'offHand', 'armor', 'accessory'])) errors.push('Trang bị không hợp lệ.');
   const safeEquipment = object(equipment) && hasOnly(equipment, ['mainHand', 'offHand', 'armor', 'accessory']) ? equipment : undefined;
   for (const [key, catalog] of [['armor', TEMP_R2D_ARMORS], ['accessory', TEMP_R2D_ACCESSORIES]] as const) {
@@ -91,7 +96,8 @@ export function compileBuild(build: UnitBuild): CompiledUnitProfile {
   const weaponBase = weapon.damagePhysicalWeapon + (accessory?.damage ?? 0);
   // Whetstone enters the base before grip rounding; core and splash stay separate.
   const weaponDamage = Math.round(weaponBase * (gripMode === 'two_hand_grip' ? TEMP_R2A_TWO_HAND_MULTIPLIER : 1));
-  const snapshot: UnitBuild = Object.freeze({ coreId: build.coreId, equipment: Object.freeze({
+  const snapshot: UnitBuild = Object.freeze({ coreId: build.coreId,
+    ...(Object.hasOwn(build, 'appearanceId') ? { appearanceId: build.appearanceId } : {}), equipment: Object.freeze({
     mainHand: weapon.id, offHand: Object.freeze({ ...build.equipment.offHand }),
     ...(Object.hasOwn(build.equipment, 'armor') ? { armor: build.equipment.armor } : {}),
     ...(Object.hasOwn(build.equipment, 'accessory') ? { accessory: build.equipment.accessory } : {}),
@@ -99,7 +105,8 @@ export function compileBuild(build: UnitBuild): CompiledUnitProfile {
   const source = WEAPON_CATALOG.find(item => item.id === weapon.id)!;
   const behavior = compileCombatBehavior(weapon.behavior);
   if (behavior.kind === 'support_retreat' && behavior.kiteDistance >= weapon.attackRange) throw new RangeError('Retreat threshold must be inside attack range');
-  return Object.freeze({ build: snapshot, weaponId: weapon.id, family: weapon.animationFamily, gripMode,
+  return Object.freeze({ build: snapshot, appearanceId: (build.appearanceId ?? DEFAULT_APPEARANCE) as AppearanceId,
+    weaponId: weapon.id, family: weapon.animationFamily, gripMode,
     name: `Thử · ${source.sourceName}`, mark: weapon.mark, role: `${FAMILY_LABELS[weapon.animationFamily]} · ${weapon.roleNote ?? 'Thử nghiệm'}`,
     hp: TEMP_R2A_CORE.hp + (armor?.hp ?? 0) + (accessory?.hp ?? 0), shieldHp: shield ? TEMP_R2A_SHIELD.hp : 0,
     damagePhysicalCore: TEMP_R2A_CORE.damagePhysical, damagePhysicalWeaponBase: weaponBase,
